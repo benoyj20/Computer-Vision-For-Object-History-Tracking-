@@ -48,7 +48,14 @@ the tracker exists and is tested.
 - [ ] Provide the snapshot sequences in the format in [data/README.md](../data/README.md),
   with a timezone-aware capture time for every image.
 - [ ] Download the Roboflow dataset; record version, license, and hash.
-- [ ] Decide whether the Kaggle data is usable under its rules and worth re-annotating.
+- [x] Decide whether the Kaggle data is usable under its rules and worth re-annotating
+  (2026-10-09: Benoy confirmed training is permitted; recorded in the data card).
+- [x] Kaggle auto-labeling pipeline (2026-10-09, branch `feature/kaggle-auto-labels`):
+  frozen class-stratified split, YOLOE box proposals with review flags, HTML review page, and
+  YOLO-format export that requires a verdict on every validation and test image. Unit tests in
+  `packages/detection/tests/test_kaggle_*.py`; proposals run on all 5,559 labeled images.
+- [ ] Human review of the Kaggle proposals (all validation/test, flagged training, 300-image
+  training spot-check) and the resulting error rates recorded in the data card.
 - [ ] Choose a labeling tool and label boxes on the provided images.
 - [ ] Freeze splits grouped by capture session.
 

@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kitchenware Box Review</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f7f5;
+        --surface: #ffffff;
+        --text: #1d1d1b;
+        --muted: #5f5f5a;
+        --border: #d6d6d0;
+        --box: #ff2d55;
+        --accept: #1f7a3a;
+        --reject: #b42318;
+        --focus: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161615;
+          --surface: #222220;
+          --text: #ececea;
+          --muted: #a5a59f;
+          --border: #3b3b38;
+          --accept: #4ade80;
+          --reject: #f87171;
+          --focus: #60a5fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+      header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; }
+      @media (min-width: 768px) { header { position: sticky; top: 0; z-index: 2; } }
+      h1 { font-size: 18px; margin: 0 0 6px; }
+      details { margin: 4px 0 8px; color: var(--muted); }
+      details ul { margin: 6px 0; padding-left: 20px; }
+      .controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+      label { display: inline-flex; gap: 6px; align-items: center; }
+      input, select, button { font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; min-height: 44px; }
+      button { cursor: pointer; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+      #progress, #message { color: var(--muted); margin: 6px 0 0; }
+      #message:not(:empty) { color: var(--reject); }
+      main { padding: 16px; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+      .tile { margin: 0; background: var(--surface); border: 2px solid var(--border); border-radius: 8px; overflow: hidden; }
+      .tile[data-state="accept"] { border-color: var(--accept); }
+      .tile[data-state="reject"] { border-color: var(--reject); }
+      .frame { position: relative; }
+      .frame img { display: block; width: 100%; height: auto; }
+      .box { position: absolute; border: 3px solid var(--box); pointer-events: none; }
+      figcaption { padding: 8px; display: grid; gap: 6px; }
+      .meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+      .reasons { font-size: 13px; color: var(--reject); }
+      .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+      .status { font-weight: 600; }
+      .tile[data-state="accept"] .status { color: var(--accept); }
+      .tile[data-state="reject"] .status { color: var(--reject); }
+      nav { display: flex; gap: 8px; align-items: center; justify-content: center; padding: 0 16px 24px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Kitchenware box review</h1>
+      <details>
+        <summary>How to review</summary>
+        <ul>
+          <li><strong>Accept</strong> when the red box tightly encloses the whole object and the class is right.</li>
+          <li><strong>Reject</strong> when the box misses part of the object, covers background or another object,
+            when more than one kitchen object is visible (the others would be unlabeled), or when the object is
+            none of the classes.</li>
+          <li>Change the class when the box is right but the label is wrong, then accept.</li>
+          <li>Every page must be finished before export: validation and test images without a verdict stop the export.</li>
+          <li>Progress is saved in this browser. Download <code>reviews.csv</code> and save it as
+            <code>reviews.csv</code> next to this page; regenerating the page loads it again.</li>
+        </ul>
+      </details>
+      <div class="controls">
+        <label>Reviewer <input id="reviewer" autocomplete="name" placeholder="Your name" /></label>
+        <label>Show
+          <select id="category">
+            <option value="">All queued images</option>
+            <option value="held_out">Validation and test</option>
+            <option value="flagged">Flagged training</option>
+            <option value="spot_check">Training spot-check</option>
+          </select>
+        </label>
+        <label>Status
+          <select id="status">
+            <option value="">Any</option>
+            <option value="unreviewed">Unreviewed</option>
+            <option value="reject">Rejected</option>
+            <option value="relabeled">Relabeled</option>
+          </select>
+        </label>
+        <button id="accept-page" type="button">Accept unreviewed on this page</button>
+        <button id="download" type="button">Download reviews.csv</button>
+      </div>
+      <p id="progress" aria-live="polite"></p>
+      <p id="message" role="alert"></p>
+    </header>
+    <main id="tiles" aria-label="Queued images"></main>
+    <nav aria-label="Pages">
+      <button id="previous" type="button">Previous page</button>
+      <span id="page-label"></span>
+      <button id="next" type="button">Next page</button>
+    </nav>
+    <script type="application/json" id="review-data">__REVIEW_DATA__</script>
+    <script>
+      "use strict";
+      const PAGE_SIZE = 48;
+      const data = JSON.parse(document.getElementById("review-data").textContent);
+      const storageKey = "objhist-kitchenware-review:" + data.queueId;
+      const itemsById = new Map(data.items.map((item) => [item.id, item]));
+      const reviews = new Map();
+      for (const item of data.items) if (item.review) reviews.set(item.id, item.review);
+
+      const reviewerInput = document.getElementById("reviewer");
+      const categorySelect = document.getElementById("category");
+      const statusSelect = document.getElementById("status");
+      const tiles = document.getElementById("tiles");
+      const message = document.getElementById("message");
+      let page = 0;
+
+      // Saved browser progress wins over the embedded reviews only when it is newer.
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+        if (saved) {
+          reviewerInput.value = saved.reviewer || "";
+          for (const [id, review] of Object.entries(saved.reviews || {})) {
+            const current = reviews.get(id);
+            const isNewer = !current || Date.parse(review.reviewedAt) > Date.parse(current.reviewedAt);
+            if (itemsById.has(id) && isNewer) reviews.set(id, review);
+          }
+        }
+      } catch (error) {
+        message.textContent = "Saved progress could not be read; download reviews.csv often.";
+      }
+
+      function save() {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify({ reviewer: reviewerInput.value, reviews: Object.fromEntries(reviews) }));
+        } catch (error) {
+          message.textContent = "Progress could not be saved in this browser; download reviews.csv now.";
+        }
+      }
+
+      function isRelabeled(item) {
+        const review = reviews.get(item.id);
+        return Boolean(review && review.className !== item.label);
+      }
+
+      function filteredItems() {
+        return data.items.filter((item) => {
+          if (categorySelect.value && item.category !== categorySelect.value) return false;
+          const review = reviews.get(item.id);
+          if (statusSelect.value === "unreviewed") return !review;
+          if (statusSelect.value === "reject") return review && review.verdict === "reject";
+          if (statusSelect.value === "relabeled") return isRelabeled(item);
+          return true;
+        });
+      }
+
+      function record(item, verdict, className) {
+        const reviewer = reviewerInput.value.trim();
+        if (!reviewer) {
+          message.textContent = "Enter your name as reviewer before recording verdicts.";
+          reviewerInput.focus();
+          return false;
+        }
+        message.textContent = "";
+        reviews.set(item.id, { verdict, className, reviewer, reviewedAt: new Date().toISOString() });
+        return true;
+      }
+
+      function describe(item) {
+        const review = reviews.get(item.id);
+        if (!review) return "Not reviewed";
+        const verdict = review.verdict === "accept" ? "Accepted" : "Rejected";
+        return review.className !== item.label ? `${verdict} as ${review.className}` : verdict;
+      }
+
+      function renderTile(item) {
+        const review = reviews.get(item.id);
+        const figure = document.createElement("figure");
+        figure.className = "tile";
+        figure.dataset.state = review ? review.verdict : "none";
+
+        const frame = document.createElement("div");
+        frame.className = "frame";
+        const image = document.createElement("img");
+        image.loading = "lazy";
+        image.src = item.src;
+        image.width = item.width;
+        image.height = item.height;
+        image.alt = `Image ${item.id}, labeled ${item.label}` + (item.box ? ", with the proposed box outlined" : ", no box proposed");
+        frame.append(image);
+        if (item.box) {
+          const [xMin, yMin, xMax, yMax] = item.box;
+          const box = document.createElement("div");
+          box.className = "box";
+          box.style.left = (100 * xMin) / item.width + "%";
+          box.style.top = (100 * yMin) / item.height + "%";
+          box.style.width = (100 * (xMax - xMin)) / item.width + "%";
+          box.style.height = (100 * (yMax - yMin)) / item.height + "%";
+          frame.append(box);
+        }
+
+        const caption = document.createElement("figcaption");
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const confidence = item.confidence === null ? "no box" : `conf ${item.confidence.toFixed(2)}`;
+        const guess = item.detectorClass ? `, detector says ${item.detectorClass}` : "";
+        meta.textContent = `${item.id} · labeled ${item.label} · ${item.split} · ${item.category.replace("_", " ")} · ${confidence}${guess}`;
+        caption.append(meta);
+        if (item.reasons.length) {
+          const reasons = document.createElement("div");
+          reasons.className = "reasons";
+          reasons.textContent = "Flagged: " + item.reasons.join(", ").replaceAll("_", " ");
+          caption.append(reasons);
+        }
+
+        const classLabel = document.createElement("label");
+        classLabel.textContent = "Class";
+        const classSelect = document.createElement("select");
+        for (const name of data.classes) classSelect.add(new Option(name, name));
+        classSelect.value = review ? review.className : item.label;
+        classLabel.append(classSelect);
+        caption.append(classLabel);
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        const accept = document.createElement("button");
+        accept.type = "button";
+        accept.textContent = "Accept";
+        accept.disabled = !item.box;
+        if (!item.box) accept.title = "No box was proposed, so this image can only be rejected.";
+        const reject = document.createElement("button");
+        reject.type = "button";
+        reject.textContent = "Reject";
+        const status = document.createElement("span");
+        status.className = "status";
+        status.textContent = describe(item);
+        actions.append(accept, reject, status);
+        caption.append(actions);
+
+        const update = (verdict) => {
+          if (!record(item, verdict, classSelect.value)) return;
+          figure.dataset.state = verdict;
+          status.textContent = describe(item);
+          save();
+          renderProgress();
+        };
+        accept.addEventListener("click", () => update("accept"));
+        reject.addEventListener("click", () => update("reject"));
+        classSelect.addEventListener("change", () => {
+          if (reviews.has(item.id)) update(reviews.get(item.id).verdict);
+        });
+
+        figure.append(frame, caption);
+        return figure;
+      }
+
+      function pageItems() {
+        const items = filteredItems();
+        const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+        page = Math.min(page, pageCount - 1);
+        return { items: items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), pageCount, total: items.length };
+      }
+
+      function render() {
+        const { items, pageCount, total } = pageItems();
+        tiles.replaceChildren(...items.map(renderTile));
+        document.getElementById("page-label").textContent = `Page ${page + 1} of ${pageCount} (${total} images)`;
+        document.getElementById("previous").disabled = page === 0;
+        document.getElementById("next").disabled = page >= pageCount - 1;
+        renderProgress();
+      }
+
+      function renderProgress() {
+        const parts = ["held_out", "flagged", "spot_check"].map((category) => {
+          const items = data.items.filter((item) => item.category === category);
+          const done = items.filter((item) => reviews.has(item.id)).length;
+          return `${category.replace("_", " ")} ${done}/${items.length}`;
+        });
+        document.getElementById("progress").textContent = `Reviewed ${reviews.size} of ${data.items.length}: ${parts.join(", ")}`;
+      }
+
+      document.getElementById("accept-page").addEventListener("click", () => {
+        for (const item of pageItems().items) {
+          if (!reviews.has(item.id) && item.box && !record(item, "accept", item.label)) return;
+        }
+        save();
+        render();
+      });
+
+      document.getElementById("download").addEventListener("click", () => {
+        const quote = (value) => (/[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value);
+        const rows = [["image_id", "verdict", "class_name", "reviewer", "reviewed_at"]];
+        for (const item of data.items) {
+          const review = reviews.get(item.id);
+          if (review) rows.push([item.id, review.verdict, review.className, review.reviewer, review.reviewedAt]);
+        }
+        const csv = rows.map((row) => row.map(quote).join(",")).join("\n") + "\n";
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        link.download = "reviews.csv";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      });
+
+      reviewerInput.addEventListener("change", save);
+      for (const select of [categorySelect, statusSelect]) {
+        select.addEventListener("change", () => {
+          page = 0;
+          render();
+        });
+      }
+      document.getElementById("previous").addEventListener("click", () => {
+        page -= 1;
+        render();
+        window.scrollTo(0, 0);
+      });
+      document.getElementById("next").addEventListener("click", () => {
+        page += 1;
+        render();
+        window.scrollTo(0, 0);
+      });
+      render();
+    </script>
+  </body>
+</html>
