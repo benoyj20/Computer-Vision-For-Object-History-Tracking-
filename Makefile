@@ -26,8 +26,8 @@ dev-web: ## Start the Next.js web app at http://localhost:3000
 env-check: ## Report PyTorch, CUDA, and Ultralytics versions; fail without CUDA
 	uv run python -m objhist_detection.env_check --require-cuda
 
-train: ## Fine-tune YOLO26 with the Ultralytics CLI; output goes to runs/detect/
-	uv run yolo detect train data=$(DATA) model=$(MODEL) epochs=$(EPOCHS) imgsz=$(IMGSZ) batch=$(BATCH) device=$(DEVICE) project=runs/detect name=$(RUN_NAME)
+train: ## Fine-tune YOLO26 with the Ultralytics CLI; output goes to runs/detect/$(RUN_NAME)/
+	YOLO_AUTOINSTALL=False uv run yolo detect train data=$(DATA) model=$(MODEL) epochs=$(EPOCHS) imgsz=$(IMGSZ) batch=$(BATCH) device=$(DEVICE) project=$(CURDIR)/runs/detect name=$(RUN_NAME)
 
 format: ## Format Python and web code
 	uv run ruff format .
