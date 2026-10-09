@@ -1,0 +1,45 @@
+# JavaScript
+node_modules/
+.next/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Datasets, captures, and generated evidence stay local; see data/README.md
+data/*
+!data/README.md
+.data/
+
+# Training output and model weights
+runs/
+weights/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.torchscript
+mlruns/
+wandb/
+
+# Claude Code session artifacts
+.superpowers/
+.claude/settings.local.json
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
