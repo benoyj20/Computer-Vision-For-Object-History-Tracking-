@@ -11,6 +11,8 @@ data/
 ├── raw/          # downloads and provided sequences exactly as received
 │   ├── roboflow-kitchen-items/
 │   └── sequences/<session-id>/
+├── interim/      # pipeline state: proposals, frozen splits, review queue and reviews
+│   └── kaggle-kitchenware/
 ├── processed/    # YOLO-format datasets ready for training
 │   └── kitchen/
 │       ├── data.yaml
@@ -54,6 +56,36 @@ filename,captured_at
 
 If capture times are only in the images' EXIF data, deliver the images and the manifest can be
 generated from EXIF, provided the camera clock and time zone were correct.
+
+## Kaggle kitchenware auto-labels
+
+The [Kaggle Kitchenware Classification](https://www.kaggle.com/competitions/kitchenware-classification/data)
+images have class labels but no boxes. `objhist_detection.kaggle_kitchenware` proposes one box
+per photo with YOLOE, a person reviews the proposals, and the reviewed set is exported in YOLO
+format. Download and unzip the competition data anywhere (it holds `train.csv` and `images/`),
+then run the steps in order from the repository root:
+
+```sh
+KAGGLE=path/to/kitchenware-classification
+uv run python -m objhist_detection.kaggle_kitchenware --source $KAGGLE split
+uv run python -m objhist_detection.kaggle_kitchenware --source $KAGGLE propose
+uv run python -m objhist_detection.kaggle_kitchenware --source $KAGGLE review-page
+# open the printed review.html, review, download reviews.csv into data/interim/kaggle-kitchenware/
+uv run python -m objhist_detection.kaggle_kitchenware --source $KAGGLE export
+make train DATA=data/processed/kitchen/data.yaml
+```
+
+- `split` freezes `splits.csv` (70/15/15 per class, seed 5330). It refuses to replace an
+  existing split; `--force` is a deliberate unfreeze that invalidates earlier results.
+- `propose` needs the CUDA build and downloads `yoloe-26s-seg.pt` and its text encoder into
+  `weights/` on first use. It writes `proposals.csv` and `proposals.meta.json` (model hash,
+  prompts, thresholds, versions).
+- `review-page` queues every validation and test image, every flagged training image, and a
+  300-image random spot-check of the other training images. Re-run it after saving
+  `reviews.csv` to resume with those verdicts loaded; progress is also kept in the browser.
+- `export` refuses to run until every validation and test image has a verdict. It writes
+  `data.yaml`, `images/`, `labels/`, `manifest.csv`, and `summary.json` with review outcomes;
+  record those in the [data card](../docs/data-card.md).
 
 ## Training
 
