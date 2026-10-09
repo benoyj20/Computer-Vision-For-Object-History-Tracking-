@@ -14,7 +14,7 @@ camera, and build scripted scenarios for evaluating the object history.
 | Source | Content | Usable for detector training | Open questions |
 | --- | --- | --- | --- |
 | [Roboflow Kitchen Items](https://universe.roboflow.com/new-bywkn/kitchen-items-u5c2t) | 1,839 images, boxes for 9 classes: cup, plate, spoon, fork, knife, dish, kettle, pan, rice cooker | Yes | License and version to record at download; viewpoint differs from an overhead counter camera |
-| [Kaggle Kitchenware Classification](https://www.kaggle.com/competitions/kitchenware-classification/data) | Image-level labels for 6 categories: cups, glasses, plates, spoons, forks, knives | Only after box annotation; see [below](#kaggle-kitchenware-auto-labels) | Competition rules not yet confirmed to allow use outside the competition |
+| [Kaggle Kitchenware Classification](https://www.kaggle.com/competitions/kitchenware-classification/data) | Image-level labels for 6 categories: cups, glasses, plates, spoons, forks, knives | Only after box annotation; see [below](#kaggle-kitchenware-auto-labels) | Training confirmed allowed (2026-10-09); no redistribution |
 | Provided snapshot sequences | Ordered images from a fixed counter camera, supplied by Benoy in the format in [data/README.md](../data/README.md) | Yes, after box labeling | Required for the target classes and viewpoint; see gaps below |
 | COCO-pretrained YOLO26 | Pretrained classes include cup, bottle, bowl, knife, spoon, fork, wine glass, banana, apple, orange | Zero-shot baseline only | Useful to measure what fine-tuning adds |
 
@@ -24,12 +24,11 @@ Status: boxes proposed, human review not started, no export yet. Commands are in
 [data/README.md](../data/README.md#kaggle-kitchenware-auto-labels); the code is
 `packages/detection/src/objhist_detection/kaggle_kitchenware/`.
 
-**License: unresolved, blocks training.** The competition (DataTalks.Club, December 2022 to
-February 2023, images collected with Toloka) states its data terms on the Kaggle Rules tab,
-which could not be read without a Kaggle login. Older Kaggle competition rules limited data use
-to the competition. Before training on or sharing anything derived from these images, a
-contributor must read the Rules tab, record the license and any non-competition-use clause
-here, and confirm that a course project is allowed.
+**License: training permitted.** On 2026-10-09 Benoy checked the competition terms
+(DataTalks.Club, December 2022 to February 2023, images collected with Toloka) and confirmed
+that training on the images for this course project is allowed. The images and anything derived
+from them (boxes, exports, weights) stay local and are not redistributed; add the exact license
+name from the Rules tab here when it is next opened.
 
 ### Source facts (checked 2026-10-09)
 
