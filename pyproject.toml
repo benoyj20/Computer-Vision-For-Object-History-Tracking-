@@ -1,0 +1,60 @@
+[project]
+name = "objhist-workspace"
+version = "0.1.0"
+requires-python = ">=3.12,<3.14"
+
+# Select exactly one PyTorch build at sync time: `--extra cu130` for NVIDIA GPUs
+# (driver 580+, includes RTX 50-series) or `--extra cpu` for CI and laptops
+# without CUDA. See docs/adr/0001-workspace-layout-and-pytorch-builds.md.
+[project.optional-dependencies]
+cpu = ["torch>=2.9", "torchvision>=0.24"]
+cu130 = ["torch>=2.9", "torchvision>=0.24"]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu130" }]]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu130", extra = "cu130" },
+]
+torchvision = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu130", extra = "cu130" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9",
+  "ruff>=0.11,<1",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["packages/*/src"]
+# Vendored skills are kept identical to their pinned upstream sources.
+extend-exclude = [".claude"]
+
+[tool.ruff.lint]
+extend-select = ["I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages"]
+addopts = ["--import-mode=importlib", "--strict-markers"]
+markers = [
+  "gpu: requires a CUDA device; skipped when none is available",
+]
