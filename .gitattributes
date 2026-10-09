@@ -1,0 +1,13 @@
+# Keep LF in the repository regardless of each contributor's core.autocrlf.
+* text=auto eol=lf
+
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.bmp binary
+*.webp binary
+*.mp4 binary
+*.pt binary
+*.onnx binary
+*.engine binary
+*.pdf binary
