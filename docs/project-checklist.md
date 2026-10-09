@@ -54,8 +54,9 @@ the tracker exists and is tested.
   frozen class-stratified split, YOLOE box proposals with review flags, HTML review page, and
   YOLO-format export that requires a verdict on every validation and test image. Unit tests in
   `packages/detection/tests/test_kaggle_*.py`; proposals run on all 5,559 labeled images.
-- [ ] Human review of the Kaggle proposals (all validation/test, flagged training, 300-image
-  training spot-check) and the resulting error rates recorded in the data card.
+- [x] Review of the Kaggle proposals (all validation/test, flagged training, 300-image training
+  spot-check), done by Claude visual review rather than a person (2026-10-09); error rates and
+  audit in the data card. A human re-check of the test split is still recommended.
 - [ ] Choose a labeling tool and label boxes on the provided images.
 - [ ] Freeze splits grouped by capture session.
 
@@ -66,6 +67,8 @@ trains with `make train`.
 
 - [ ] Zero-shot COCO-pretrained YOLO26 baseline on the held-out split.
 - [ ] Fine-tune YOLO26; record the command, seed, hardware, and metrics for each run.
+  First run on `kaggle-kitchenware-v1` (2026-10-09): test mAP50 0.984, mAP50-95 0.961 on
+  single-object close-ups; details in the data card. Still needs in-domain counter data.
 - [ ] Compare model sizes (n/s) for accuracy versus speed on the 8 GB GPU.
 - [ ] Convert predictions to `FrameDetections` with tests for coordinate conversion.
 - [ ] Choose and record the confidence threshold on the validation split.

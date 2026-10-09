@@ -20,7 +20,8 @@ camera, and build scripted scenarios for evaluating the object history.
 
 ## Kaggle kitchenware auto-labels
 
-Status: boxes proposed, human review not started, no export yet. Commands are in
+Status: reviewed and exported as dataset version `kaggle-kitchenware-v1` (2026-10-09); one
+YOLO26n model trained on it. Commands are in
 [data/README.md](../data/README.md#kaggle-kitchenware-auto-labels); the code is
 `packages/detection/src/objhist_detection/kaggle_kitchenware/`.
 
@@ -62,7 +63,8 @@ name from the Rules tab here when it is next opened.
    more than one reason). No-box images are mostly plates (35) and spoons (23) that YOLOE missed.
    SHA-256 of `proposals.csv`: `27240ced66d697175adf5c9883c39980e195bba50bb7be335922a3dc37187313`; model SHA-256 and versions are in
    `proposals.meta.json`.
-4. **Human review** on the generated `review.html`: every validation and test image, every
+4. **Review** (designed for people on the generated `review.html`; this release was reviewed by
+   Claude, see below): every validation and test image, every
    flagged training image, and a seeded random spot-check of 300 unflagged training images.
    Reviewers accept, reject (bad box, several objects, or not a listed class), or change the
    class. Queue: 2,872 images (1,668 validation/test, 904 flagged training, 300 spot-check).
@@ -71,11 +73,64 @@ name from the Rules tab here when it is next opened.
    run while any validation or test image lacks a verdict. `summary.json` records the counts and
    review outcomes; copy them into the table below.
 
-### Review outcomes
+### Review outcomes (2026-10-09)
 
-Not reviewed yet. Record per category: queued, reviewed, rejected, relabeled, and the resulting
-error rates. `rejected` includes images without a box, which can only be rejected; subtract them
-when reporting how often a proposed box was wrong. The spot-check error rate estimates label noise in the unreviewed training images.
+**Who reviewed:** Claude (`claude-opus-5-5`), not a person. The model read 175 contact sheets of 16 images, each with its proposed box drawn on. I calibrated the rubric on two sheets myself; seven parallel reviewers using that rubric covered the rest. The reviewer column in `reviews.csv` says `claude-opus-5-5 visual review`. Images without a box were rejected automatically. Three duplicate pairs were decided by keeping the correctly labeled copy (0237 knife, 8532 glass, 7196 fork).
+
+**Rubric:**
+- Accept a box that encloses the whole object.
+- Reject when the box covers only part of the object (a handle, a rim, or a cup handle more than about 15% outside), sits on background, another listed object is clearly visible, or the object is not a listed class (bowls, pans, ladles).
+- Relabel only when the label is clearly wrong.
+
+| Queue | Queued | Without a box | Rejected (box shown) | Relabeled | Error rate among images with a box |
+| --- | --- | --- | --- | --- | --- |
+| Validation and test | 1,668 | 26 | 215 | 10 | 13.7% (225/1,642) |
+| Flagged training | 904 | 50 | 285 | 1 | 33.5% (286/854) |
+| Training spot-check | 300 | 0 | 22 | 3 | 8.3% (25/300; 95% CI 5.7–12.0%) |
+
+- **Unreviewed training images:** the spot-check estimates that about 8% of the 2,979 unreviewed training images carry a bad box or label. Most are partial boxes (a spoon handle without its bowl) or bowls labeled plate.
+- **Audit:** I re-checked a random 32 of the reviewers' verdicts (16 accepts, 16 rejects) and agreed with 31. The miss was a deep bowl accepted as plate, so bowl-versus-plate leniency is the main known reviewer error.
+- **Reviewer inconsistency:** reviewers differed on opaque handleless tumblers labeled glass. Some relabeled them cup (12 glass-to-cup relabels in total) and others kept glass. This leaves a little cup/glass label noise.
+- **Before reporting test results externally**, a person should re-check the test split.
+
+### Exported dataset `kaggle-kitchenware-v1`
+
+`data/processed/kitchen/`; class order `cup, fork, glass, knife, plate, spoon`.
+
+| Split | cup | fork | glass | knife | plate | spoon | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| train | 737 | 377 | 490 | 604 | 718 | 608 | 3,534 |
+| val | 153 | 82 | 99 | 127 | 134 | 126 | 721 |
+| test | 154 | 77 | 98 | 125 | 128 | 124 | 706 |
+
+- Excluded: 598 images (76 without a box, 522 rejected).
+- `manifest.csv` SHA-256: `421bdcd1b41f7ba19ca661bd3efe3910ef09fe1e81a3bbce6fae0ce418d7d039`.
+- `reviews.csv` SHA-256: `85cd382dd43c7ba31b94f36184fbd77ba7cad18e73c17ce3962c5a0195d8013b`.
+- Input hashes are in `summary.json`.
+
+### Training run `yolo26n-kitchen` (2026-10-09)
+
+- **Command:** `make train DATA=data/processed/kitchen/data.yaml` (`yolo26n.pt`, 100 epochs, imgsz 640, batch 16, seed 0, `deterministic=True`, other Ultralytics 8.4.174 defaults).
+- **Hardware:** RTX 5070 Laptop GPU 8 GB, torch 2.14.1+cu130. Training took 0.93 h.
+- **Best checkpoint:** epoch 84; `best.pt` SHA-256 `4f404eb4be11a25e155d8b8849704d253a6c20d366cc5c559ff1ff13ab6f6392`.
+  Output is in `runs/detect/runs/detect/yolo26n-kitchen/` (the Makefile has since been fixed to write `runs/detect/<name>/`).
+- **Validation (721 images):** mAP50 0.985, mAP50-95 0.962.
+- **Test (706 images), evaluated once after training:**
+  `yolo detect val model=.../best.pt data=data/processed/kitchen/data.yaml split=test`
+
+| Class | Images | Precision | Recall | mAP50 | mAP50-95 |
+| --- | --- | --- | --- | --- | --- |
+| all | 706 | 0.964 | 0.967 | 0.984 | 0.961 |
+| cup | 154 | 0.936 | 0.957 | 0.981 | 0.969 |
+| fork | 77 | 0.958 | 0.974 | 0.977 | 0.938 |
+| glass | 98 | 0.928 | 0.922 | 0.964 | 0.952 |
+| knife | 125 | 0.986 | 0.976 | 0.994 | 0.953 |
+| plate | 128 | 0.988 | 0.992 | 0.995 | 0.987 |
+| spoon | 124 | 0.988 | 0.984 | 0.995 | 0.969 |
+
+Inference took 7.6 ms per image at 640 px.
+
+**What this number means:** the test boxes come from the same YOLOE proposals that a reviewer accepted, and hard images were removed. The score therefore measures how well YOLO26n reproduces reviewed YOLOE boxes on single-object close-ups. It is not object-history accuracy and not counter-view performance. It is a single run with a single seed. A zero-shot COCO baseline has not been run yet; COCO has no plate class.
 
 ### Limitations
 
