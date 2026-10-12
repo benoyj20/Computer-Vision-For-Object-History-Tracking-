@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
-from objhist_detection.kaggle_kitchenware.source import CLASS_NAMES
+from objhist_detection.annotation import CLASS_NAMES
 
 SPLIT_SEED = 5330
 
