@@ -1,6 +1,6 @@
 # Project and testing checklist
 
-Status snapshot: October 8, 2026. The [problem statement and plan](problem-statement-and-plan.md)
+Status snapshot: October 12, 2026. The [problem statement and plan](problem-statement-and-plan.md)
 describes the targets; this checklist records what actually exists and what has evidence.
 
 A checked item means the work or verification was completed. An unchecked item still needs
@@ -9,9 +9,11 @@ checking items off; keep manual checks distinct from automated tests.
 
 ## Current working flow
 
-Repository setup only. No detector has been trained, and tracking, history, the assistant, and
-evaluation are not implemented. The shared `FrameDetections` contract between the detector and
-the tracker exists and is tested.
+Detector side only. A YOLO26n detector trained on Kaggle close-ups runs with tiled inference on
+counter photos, and `objhist_detection.detect` writes its output per session as
+`SessionDetections` files for the tracker. No counter sessions are labeled yet, so the detector
+has no in-domain evaluation. Tracking, history, the assistant, and evaluation are not
+implemented.
 
 ## Completed: repository setup (2026-10-08, branch `chore/project-setup`)
 
@@ -81,7 +83,13 @@ trains with `make train`.
 - [x] Tiling works at lower resolutions (2026-10-12, branch
   `feature/resolution-independent-tiling`): tiles scale with the photo, giving 8–10 of 10 objects
   on the two test photos downscaled to 640–2560 px (fixed tiles: 5–9).
-- [ ] Convert predictions to `FrameDetections` with tests for coordinate conversion.
+- [x] Convert predictions to `FrameDetections` with tests for coordinate conversion
+  (2026-10-12, branch `feature/detector-tracker-bridge`): `python -m objhist_detection.detect`
+  writes one `SessionDetections` file per session with EXIF or manifest capture times
+  ([ADR 0005](adr/0005-detector-output-file-for-the-tracker.md), proposed). Ran on the test
+  session: 2 frames, 12 detections, the same as `preview`. Tests in
+  `packages/detection/tests/test_detect.py` and `test_capture_times.py`.
+- [ ] Justin agrees to the detector output file format (ADR 0005).
 - [ ] Choose and record the confidence threshold on the validation split.
 
 **Exit test:** mAP50 and mAP50-95 on the frozen test split, compared with the zero-shot baseline.
