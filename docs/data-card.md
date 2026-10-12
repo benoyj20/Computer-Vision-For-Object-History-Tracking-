@@ -143,6 +143,44 @@ Inference took 7.6 ms per image at 640 px.
   byte-identical images are grouped. Validation metrics may be inflated by such pairs.
 - No milk, dish soap, or other scenario classes.
 
+## Counter-session auto-labels
+
+Status: pipeline built and checked on the first two photos (2026-10-12); no dataset release.
+Code: `packages/detection/src/objhist_detection/counter_labels/`; commands in
+[data/README.md](../data/README.md#counter-session-auto-labels).
+
+**Why it exists.** On Benoy's first two counter photos (`2026-10-12-counter-test`: Galaxy S25
+Ultra, 4000x2252 JPEG, EXIF times with UTC offset -04:00, handheld from standing height), the
+Kaggle-trained YOLO26n at its default 640 px found only the plate (1 of 6 and 1 of 4 objects at
+confidence 0.25 or above, plus a wrong "cup" box on the plate in the first photo). Text-prompted YOLOE at 1280 px boxed every object.
+
+**Method.**
+1. YOLOE-26s-seg (same weights and prompts as the Kaggle pipeline) runs at 1280 px with
+   class-agnostic NMS. Every box with confidence 0.15 or above becomes a proposal, so one glass
+   is not proposed as both cup and glass.
+2. A reviewer keeps or rejects each proposal, sets its class, and draws boxes for missed
+   objects. A photo is exported only once every proposal has a verdict and it is marked done.
+   Proposed boxes cannot be resized; a poor box is rejected and redrawn.
+3. Whole sessions are assigned to splits; validation and test sessions must be fully reviewed.
+
+**First check (2026-10-12, 2 photos, pipeline test only).**
+
+| Photo | Objects (from Benoy's log) | Proposed | Kept, same class | Kept, relabeled | Rejected | Drawn |
+| --- | --- | --- | --- | --- | --- | --- |
+| 20261012_134754 | 6 | 7 | 5 | 1 (glass proposed as cup) | 1 (stove grate as spoon) | 0 |
+| 20261012_134837 | 4 | 8 | 3 | 1 (glass proposed as cup) | 4 (stove grates as spoon) | 0 |
+
+- **Proposals:** every object in Benoy's log got a correct box; no box needed drawing. YOLOE's
+  known glass-as-cup bias appeared on both glasses, and its false positives were low-confidence
+  "spoons" on the stove grates (0.19-0.33).
+- **Who reviewed:** Claude (`claude-opus-5-5 test review`) reviewed these two photos to test the
+  pipeline end to end, not a person. Re-review them on the page before they count as training
+  data.
+- **Export check:** the exported labels were drawn back onto the images and matched the log.
+  Ultralytics loaded the export (2 images, 10 boxes) for a one-epoch load check.
+- **Too small to measure:** two photos are a smoke test, not a measurement. Detector accuracy
+  on counter photos needs held-out sessions.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
@@ -157,7 +195,11 @@ Inference took 7.6 ms per image at 640 px.
 
 Record for each delivered batch: number of sessions, images per session, snapshot interval,
 camera position, resolution, where capture times came from (EXIF or manifest), and the time
-zone. Sessions without reliable capture times cannot support time-based answers.
+zone.
+
+- `2026-10-12-counter-test` (test batch): 2 photos, 43 s apart; handheld phone (Galaxy S25
+  Ultra) from standing height, so the framing shifts between photos; 4000x2252 JPEG; capture
+  times from EXIF `DateTimeOriginal` with offset -04:00; change log `changes.xlsx`. Sessions without reliable capture times cannot support time-based answers.
 
 ## Class list
 

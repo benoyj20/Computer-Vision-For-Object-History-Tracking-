@@ -6,6 +6,7 @@ import pytest
 import yaml
 from PIL import Image
 
+from objhist_detection.annotation import EXIF_ORIENTATION_TAG, PixelBox
 from objhist_detection.kaggle_kitchenware.export import (
     MANIFEST_FILENAME,
     Exclusion,
@@ -16,9 +17,8 @@ from objhist_detection.kaggle_kitchenware.export import (
     write_export,
     yolo_label_line,
 )
-from objhist_detection.kaggle_kitchenware.proposals import BoxProposal, PixelBox, ReviewReason
+from objhist_detection.kaggle_kitchenware.proposals import BoxProposal, ReviewReason
 from objhist_detection.kaggle_kitchenware.review import Review, ReviewCategory, Verdict
-from objhist_detection.kaggle_kitchenware.source import EXIF_ORIENTATION_TAG
 from objhist_detection.kaggle_kitchenware.splits import Split, SplitAssignment
 
 ProposalFactory = Callable[..., BoxProposal]

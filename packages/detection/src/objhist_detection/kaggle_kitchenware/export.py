@@ -12,10 +12,7 @@ different classes stop the export, because one of the two labels must be wrong.
 """
 
 import csv
-import hashlib
 import json
-import os
-import shutil
 from collections import Counter, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -23,24 +20,19 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 
-import yaml
-
+from objhist_detection import annotation
+from objhist_detection.annotation import CLASS_NAMES, file_sha256
 from objhist_detection.kaggle_kitchenware.proposals import BoxProposal
 from objhist_detection.kaggle_kitchenware.review import Review, ReviewCategory, Verdict
-from objhist_detection.kaggle_kitchenware.source import (
-    CLASS_NAMES,
-    UPRIGHT_EXIF_ORIENTATION,
-    load_upright_rgb,
-)
 from objhist_detection.kaggle_kitchenware.splits import Split, SplitAssignment
-
-MANIFEST_FILENAME = "manifest.csv"
-SUMMARY_FILENAME = "summary.json"
-REENCODED_JPEG_QUALITY = 95
-
-
-class ExportError(ValueError):
-    """The reviews do not support a complete, consistent export."""
+from objhist_detection.yolo_dataset import (
+    MANIFEST_FILENAME,
+    SUMMARY_FILENAME,
+    ExportError,
+    place_upright_image,
+    prepare_output_dir,
+    write_data_yaml,
+)
 
 
 class LabelSource(StrEnum):
@@ -130,45 +122,10 @@ def yolo_label_line(item: ExportItem) -> str:
     box = item.proposal.box
     if box is None:
         raise ExportError(f"{item.proposal.image_id} has no box")
-    width, height = item.proposal.width_px, item.proposal.height_px
-    center_x = (box.x_min + box.x_max) / 2 / width
-    center_y = (box.y_min + box.y_max) / 2 / height
-    box_width = (box.x_max - box.x_min) / width
-    box_height = (box.y_max - box.y_min) / height
     class_index = CLASS_NAMES.index(item.class_name)
-    return f"{class_index} {center_x:.6f} {center_y:.6f} {box_width:.6f} {box_height:.6f}\n"
-
-
-def _place_image(source: Path, destination: Path, exif_orientation: int) -> None:
-    if exif_orientation != UPRIGHT_EXIF_ORIENTATION:
-        # Store rotated photos upright so training reads the same frame the boxes use.
-        upright, _ = load_upright_rgb(source)
-        upright.save(destination, quality=REENCODED_JPEG_QUALITY)
-        return
-    try:
-        os.link(source, destination)
-    except OSError:
-        # Hard links fail across drives; a copy keeps the same bytes.
-        shutil.copy2(source, destination)
-
-
-def _prepare_output_dir(out_dir: Path, overwrite: bool) -> None:
-    if out_dir.exists() and any(out_dir.iterdir()):
-        if not overwrite:
-            raise ExportError(f"{out_dir} is not empty; pass --overwrite to replace the export")
-        if not (out_dir / MANIFEST_FILENAME).is_file():
-            raise ExportError(
-                f"{out_dir} has no {MANIFEST_FILENAME}, so it is not a previous export; "
-                "refusing to delete it"
-            )
-        shutil.rmtree(out_dir)
-    for split in Split:
-        (out_dir / "images" / split).mkdir(parents=True, exist_ok=True)
-        (out_dir / "labels" / split).mkdir(parents=True, exist_ok=True)
-
-
-def _sha256_of(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    return annotation.yolo_label_line(
+        class_index, box, item.proposal.width_px, item.proposal.height_px
+    )
 
 
 def write_export(
@@ -181,10 +138,10 @@ def write_export(
     overwrite: bool = False,
 ) -> dict[str, object]:
     """Write images, labels, `data.yaml`, the manifest, and the summary; return the summary."""
-    _prepare_output_dir(out_dir, overwrite)
+    prepare_output_dir(out_dir, overwrite)
     for item in plan.items:
         image_id = item.proposal.image_id
-        _place_image(
+        place_upright_image(
             image_paths[image_id],
             out_dir / "images" / item.split / f"{image_id}.jpg",
             item.proposal.exif_orientation,
@@ -192,14 +149,7 @@ def write_export(
         label_path = out_dir / "labels" / item.split / f"{image_id}.txt"
         label_path.write_text(yolo_label_line(item), encoding="utf-8")
 
-    data_config = {
-        "path": str(out_dir.resolve()),
-        "train": "images/train",
-        "val": "images/val",
-        "test": "images/test",
-        "names": dict(enumerate(CLASS_NAMES)),
-    }
-    (out_dir / "data.yaml").write_text(yaml.safe_dump(data_config, sort_keys=False), "utf-8")
+    write_data_yaml(out_dir)
 
     with (out_dir / MANIFEST_FILENAME).open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
@@ -217,8 +167,8 @@ def write_export(
 
     summary = summarize(plan, queue, reviews)
     summary["created_at"] = datetime.now(UTC).isoformat()
-    summary["inputs_sha256"] = {name: _sha256_of(path) for name, path in input_files.items()}
-    summary["manifest_sha256"] = _sha256_of(out_dir / MANIFEST_FILENAME)
+    summary["inputs_sha256"] = {name: file_sha256(path) for name, path in input_files.items()}
+    summary["manifest_sha256"] = file_sha256(out_dir / MANIFEST_FILENAME)
     (out_dir / SUMMARY_FILENAME).write_text(json.dumps(summary, indent=2) + "\n", "utf-8")
     return summary
 
