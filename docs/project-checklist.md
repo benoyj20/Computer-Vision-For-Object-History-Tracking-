@@ -78,6 +78,9 @@ trains with `make train`.
   `feature/tiled-inference`): on the two test photos the Kaggle model went from 2 of 10 objects
   (640 px) to 9 of 10 correct, with 1 wrong class and 2 false boxes. Settings still need
   checking on held-out sessions. Tests in `packages/detection/tests/test_tiled_inference.py`.
+- [x] Tiling works at lower resolutions (2026-10-12, branch
+  `feature/resolution-independent-tiling`): tiles scale with the photo, giving 8–10 of 10 objects
+  on the two test photos downscaled to 640–2560 px (fixed tiles: 5–9).
 - [ ] Convert predictions to `FrameDetections` with tests for coordinate conversion.
 - [ ] Choose and record the confidence threshold on the validation split.
 
