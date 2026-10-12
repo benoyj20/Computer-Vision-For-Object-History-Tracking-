@@ -57,7 +57,11 @@ the tracker exists and is tested.
 - [x] Review of the Kaggle proposals (all validation/test, flagged training, 300-image training
   spot-check), done by Claude visual review rather than a person (2026-10-09); error rates and
   audit in the data card. A human re-check of the test split is still recommended.
-- [ ] Choose a labeling tool and label boxes on the provided images.
+- [x] Labeling tool for the provided images (2026-10-12, branch `feature/counter-auto-labels`):
+  YOLOE proposes every box at 1280 px, a local review page keeps, relabels, rejects, or draws
+  boxes, and an export writes session-split YOLO data. Checked on the two test photos; tests in
+  `packages/detection/tests/test_counter_*.py`.
+- [ ] Label boxes on the provided images (needs the counter sessions).
 - [ ] Freeze splits grouped by capture session.
 
 **Exit test:** a versioned dataset with a documented class list, split lists, and hashes that
