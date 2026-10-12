@@ -181,6 +181,29 @@ confidence 0.25 or above, plus a wrong "cup" box on the plate in the first photo
 - **Too small to measure:** two photos are a smoke test, not a measurement. Detector accuracy
   on counter photos needs held-out sessions.
 
+### Tiled inference with the Kaggle model (2026-10-12, same two photos)
+
+The Kaggle model recognized every object when run on a crop around it (spoon 0.88, glass 0.98,
+fork 0.96, plate 0.97, cup 0.95, knife 0.92). The misses on the full photos came from object
+size: a knife is 21% x 79% of a Kaggle photo but 3% x 28% of a counter photo, about 19 px wide
+at a 640 px input. `objhist_detection.tiled_inference` runs the model on overlapping tiles plus
+the full photo and merges the results.
+
+Scored against the reviewed labels above, at confidence 0.25 or above:
+
+| Mode | Photo 1 (6 objects) | Photo 2 (4 objects) |
+| --- | --- | --- |
+| Single pass, 640 px | 1 correct, 1 false | 1 correct |
+| Single pass, 1280 px | 4 correct | 2 correct |
+| Tiled (default settings) | 5 correct, 1 wrong class (mug as glass), 1 false | 4 correct, 1 false |
+
+- **False boxes:** both are a "knife" on the wall light switch (0.66 and 0.26).
+- **Settings were adjusted after seeing these photos:** even tile spacing and the cross-class
+  merge threshold (0.6). Treat these results as a demonstration, not an evaluation; the
+  settings must be checked on held-out sessions.
+- **Reference labels:** they come from YOLOE boxes reviewed by Claude, which favors box
+  placements close to YOLOE's.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
