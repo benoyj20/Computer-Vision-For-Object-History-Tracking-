@@ -1,3 +1,4 @@
+import pytest
 from PIL import Image
 
 from objhist_detection.annotation import PixelBox
@@ -12,6 +13,11 @@ from objhist_detection.tiled_inference import (
 )
 
 CONFIG = TilingConfig()
+
+
+def test_invalid_tile_fraction_is_rejected() -> None:
+    with pytest.raises(ValueError, match="tile_fraction=0"):
+        TilingConfig(tile_fraction=0)
 
 
 def test_tiles_cover_the_photo_and_end_at_its_edge() -> None:
@@ -82,19 +88,24 @@ class FakeDetector:
     def __init__(self, scene: list[tuple[str, PixelBox]], photo_size: tuple[int, int]) -> None:
         self.scene = scene
         width, height = photo_size
+        tile_px = CONFIG.tile_px_for(width, height)
         self.tiles = [
-            PixelBox(x, y, min(x + CONFIG.tile_px, width), min(y + CONFIG.tile_px, height))
-            for y in tile_origins(height, CONFIG.tile_px, CONFIG.overlap)
-            for x in tile_origins(width, CONFIG.tile_px, CONFIG.overlap)
+            PixelBox(x, y, min(x + tile_px, width), min(y + tile_px, height))
+            for y in tile_origins(height, tile_px, CONFIG.overlap)
+            for x in tile_origins(width, tile_px, CONFIG.overlap)
         ]
         self.calls: list[tuple[tuple[int, int], int]] = []
+        # Objects above 5% of the photo are big enough for the full-photo pass at any resolution.
+        self.large_area = 0.05 * width * height
 
     def __call__(
         self, image: Image.Image, inference_px: int, confidence_threshold: float
     ) -> list[ScoredBox]:
         self.calls.append((image.size, inference_px))
         if len(self.calls) == 1:
-            return [ScoredBox(name, 0.9, box) for name, box in self.scene if box.area > 500_000]
+            return [
+                ScoredBox(name, 0.9, box) for name, box in self.scene if box.area > self.large_area
+            ]
         tile = self.tiles[len(self.calls) - 2]
         seen = []
         for name, box in self.scene:
@@ -136,13 +147,31 @@ def test_detect_tiled_finds_small_and_large_objects_in_photo_pixels() -> None:
     assert all(call == ((1280, 1280), CONFIG.tile_inference_px) for call in detector.calls[1:])
 
 
-def test_small_photo_is_one_tile_and_detections_stay_inside_it() -> None:
+def test_tile_size_follows_photo_resolution() -> None:
+    assert CONFIG.tile_px_for(4000, 2252) == 1280
+    assert CONFIG.tile_px_for(1920, 1080) == 614
+    assert CONFIG.tile_px_for(2252, 4000) == 1280  # portrait photos use the long side too
+    assert CONFIG.tile_px_for(50, 30) == 32  # floor for tiny photos
+
+
+def test_lower_resolution_photo_gets_the_same_tiling_scaled_down() -> None:
+    scale = 1920 / 4000
+    knife = PixelBox(2062 * scale, 1286 * scale, 2183 * scale, 1911 * scale)
+    detector = FakeDetector([("knife", knife)], (1920, 1081))
+
+    detections = detect_tiled(Image.new("RGB", (1920, 1081)), detector, CONFIG)
+
+    assert [d.class_name for d in detections] == ["knife"]
+    assert len(detector.calls) == 1 + 4 * 3  # same 4x3 tile grid as the 4000 px photo
+    assert all(call == ((614, 614), CONFIG.tile_inference_px) for call in detector.calls[1:])
+
+
+def test_detections_stay_inside_a_small_photo() -> None:
     detector = FakeDetector([("cup", PixelBox(10, 10, 90, 60))], (100, 80))
 
     detections = detect_tiled(Image.new("RGB", (100, 80)), detector, CONFIG)
 
     assert [(d.class_name, d.box.x_max, d.box.y_max) for d in detections] == [("cup", 90, 60)]
-    assert detector.calls[1] == ((100, 80), CONFIG.tile_inference_px)
 
 
 def test_to_detection_clips_to_the_photo() -> None:

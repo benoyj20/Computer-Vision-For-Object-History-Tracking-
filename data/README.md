@@ -129,9 +129,10 @@ uv run python -m objhist_detection.preview --weights runs/detect/<run>/weights/b
 
 It writes annotated copies and `detections.json` (weights hash, settings, every detection) to
 `data/interim/previews/`. By default it uses tiled inference: one pass over the whole photo
-plus evenly spaced, overlapping 1280 px tiles (12 tiles on a 4000x2252 photo), merged into one
-set of detections, so small cutlery is not shrunk out of sight. `--no-tiled` runs a single
-pass at `--inference-px` instead.
+plus evenly spaced, overlapping square tiles, merged into one set of detections, so small
+cutlery is not shrunk out of sight. Tiles are 0.32 of the photo's long side (1280 px on a
+4000x2252 photo, 614 px on 1920x1080; 12 tiles either way), so any resolution works.
+`--no-tiled` runs a single pass at `--inference-px` instead.
 
 ## Training
 
