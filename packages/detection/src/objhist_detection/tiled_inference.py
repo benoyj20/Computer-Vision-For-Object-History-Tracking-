@@ -7,6 +7,10 @@ crops around each object the same model found every one (2026-10-12, both test p
 Tiled inference runs the model on overlapping tiles, so objects keep close to their real
 size, plus one pass over the whole photo for objects larger than a tile, and then merges the
 results. Detections are returned as `objhist_core.Detection` in full-photo pixels.
+
+Tiles are sized as a fraction of the photo, not in pixels, so every resolution is tiled the
+same way: each tile covers the same part of the counter and objects reach the model at about
+the same size, enlarged when the photo is small.
 """
 
 import math
@@ -18,14 +22,17 @@ from PIL import Image
 from objhist_core import BoundingBox, Detection
 from objhist_detection.annotation import PixelBox
 
+MIN_TILE_PX = 32
+"""Floor for tiny photos; below this a tile holds too few pixels to contain an object."""
+
 
 @dataclass(frozen=True)
 class TilingConfig:
     """Tiling settings, recorded with results so they can be traced (see AGENTS.md)."""
 
-    tile_px: int = 1280
-    """Square tile side in photo pixels. On the 4000x2252 test photos this keeps a table
-    knife about 60x310 px at the model input, the size it was trained on."""
+    tile_fraction: float = 0.32
+    """Square tile side as a fraction of the photo's long side. On the 4000x2252 test photos
+    this is 1280 px, which keeps a table knife about 60x310 px at the model input."""
     overlap: float = 0.25
     """Fraction of a tile shared with its neighbor, so an object cut by one tile's edge lies
     whole inside the next."""
@@ -46,10 +53,16 @@ class TilingConfig:
     and stays. Set after seeing those two photos; re-check on held-out sessions."""
 
     def __post_init__(self) -> None:
-        if self.tile_px <= 0 or not 0 <= self.overlap < 1:
-            raise ValueError(f"invalid tiling: tile_px={self.tile_px}, overlap={self.overlap}")
+        if not 0 < self.tile_fraction <= 1 or not 0 <= self.overlap < 1:
+            raise ValueError(
+                f"invalid tiling: tile_fraction={self.tile_fraction}, overlap={self.overlap}"
+            )
         if not 0 <= self.confidence_threshold <= 1:
             raise ValueError(f"confidence_threshold {self.confidence_threshold} is not in [0, 1]")
+
+    def tile_px_for(self, width_px: int, height_px: int) -> int:
+        """Tile side in pixels for a photo of this size."""
+        return max(MIN_TILE_PX, round(self.tile_fraction * max(width_px, height_px)))
 
     def as_record(self) -> dict[str, float | int]:
         return asdict(self)
@@ -147,11 +160,10 @@ def detect_tiled(image: Image.Image, predict: Predictor, config: TilingConfig) -
     """Detect objects in `image` with one full-photo pass and overlapping tiles."""
     width_px, height_px = image.size
     candidates = predict(image, config.full_photo_inference_px, config.confidence_threshold)
-    for y in tile_origins(height_px, config.tile_px, config.overlap):
-        for x in tile_origins(width_px, config.tile_px, config.overlap):
-            tile = PixelBox(
-                x, y, min(x + config.tile_px, width_px), min(y + config.tile_px, height_px)
-            )
+    tile_px = config.tile_px_for(width_px, height_px)
+    for y in tile_origins(height_px, tile_px, config.overlap):
+        for x in tile_origins(width_px, tile_px, config.overlap):
+            tile = PixelBox(x, y, min(x + tile_px, width_px), min(y + tile_px, height_px))
             crop = image.crop((int(tile.x_min), int(tile.y_min), int(tile.x_max), int(tile.y_max)))
             for scored in predict(crop, config.tile_inference_px, config.confidence_threshold):
                 box = PixelBox(

@@ -204,6 +204,22 @@ Scored against the reviewed labels above, at confidence 0.25 or above:
 - **Reference labels:** they come from YOLOE boxes reviewed by Claude, which favors box
   placements close to YOLOE's.
 
+**Lower resolutions (2026-10-12).** Tiles were first a fixed 1280 px, which only suited 4000 px
+photos: at 1920 px and below, tiling found no more than a single pass. Tiles are now 0.32 of
+the photo's long side (1280 px at 4000 px, so results there are unchanged). The same two photos,
+downscaled with Lanczos and scored against the scaled reviewed labels, correct of 10 objects:
+
+| Long side (px) | 4000 | 2560 | 1920 | 1280 | 960 | 640 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Single pass at 1280 px | 6 | 6 | 6 | 5 | 7 | 5 |
+| Tiled, fixed 1280 px tiles | 9 | 9 | 6 | 5 | 7 | 5 |
+| Tiled, relative tiles | 9 | 10 | 9 | 9 | 9 | 8 |
+
+- **False boxes with relative tiles:** 0–3 per resolution (most at 2560 and 1920 px).
+- **Wrong class with relative tiles:** at most 2.
+- **Labeling tool:** YOLOE proposals covered all 10 objects at every resolution down to 640 px.
+- **Same caveat:** these are downscaled copies of the same two photos, not independent data.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
