@@ -119,6 +119,20 @@ uv run python -m objhist_detection.counter_labels export
 - `export` refuses to run while any validation or test photo is unreviewed and writes
   `data/processed/counter/` with `data.yaml`, `manifest.csv`, and `summary.json`.
 
+## Previewing the detector on photos
+
+To see what a trained detector finds, draw its detections on photos:
+
+```sh
+uv run python -m objhist_detection.preview --weights runs/detect/<run>/weights/best.pt data/raw/sequences/<session>
+```
+
+It writes annotated copies and `detections.json` (weights hash, settings, every detection) to
+`data/interim/previews/`. By default it uses tiled inference: one pass over the whole photo
+plus evenly spaced, overlapping 1280 px tiles (12 tiles on a 4000x2252 photo), merged into one
+set of detections, so small cutlery is not shrunk out of sight. `--no-tiled` runs a single
+pass at `--inference-px` instead.
+
 ## Training
 
 Train with the dataset's `data.yaml`, for example
