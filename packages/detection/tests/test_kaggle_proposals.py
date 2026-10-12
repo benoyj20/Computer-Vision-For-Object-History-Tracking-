@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
+from objhist_detection.annotation import PixelBox
 from objhist_detection.kaggle_kitchenware.proposals import (
     BoxCandidate,
     BoxProposal,
-    PixelBox,
     ReviewReason,
     flag_duplicate_images,
     read_proposals,

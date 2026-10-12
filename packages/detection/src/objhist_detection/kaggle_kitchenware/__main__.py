@@ -20,11 +20,11 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
+from objhist_detection.annotation import file_sha256
 from objhist_detection.kaggle_kitchenware import export, proposals, review, splits
 from objhist_detection.kaggle_kitchenware.source import (
     LABELS_FILENAME,
     SourceDatasetError,
-    file_sha256,
     read_labeled_images,
 )
 
@@ -68,12 +68,13 @@ def run_propose(
     import torch
     import ultralytics
 
+    from objhist_detection import yoloe_prompts
     from objhist_detection.kaggle_kitchenware import yoloe_boxes
 
     out_path = work_dir / PROPOSALS_FILENAME
     _refuse_overwrite(out_path, force)
     images = read_labeled_images(source_dir)
-    model = yoloe_boxes.load_prompted_model(model_path)
+    model = yoloe_prompts.load_prompted_model(model_path)
     started_at = datetime.now(UTC)
     results: list[proposals.BoxProposal] = []
     for proposal in yoloe_boxes.propose_boxes(model, images, device, batch_size):
@@ -90,7 +91,7 @@ def run_propose(
         "image_count": len(results),
         "model": model_path,
         "model_sha256": file_sha256(Path(model.ckpt_path)),
-        "text_prompts": yoloe_boxes.YOLOE_TEXT_PROMPTS,
+        "text_prompts": yoloe_prompts.YOLOE_TEXT_PROMPTS,
         "inference_image_size_px": yoloe_boxes.INFERENCE_IMAGE_SIZE_PX,
         "candidate_confidence_floor": yoloe_boxes.CANDIDATE_CONFIDENCE_FLOOR,
         "low_confidence_threshold": proposals.LOW_CONFIDENCE_THRESHOLD,
