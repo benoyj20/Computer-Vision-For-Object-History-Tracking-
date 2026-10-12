@@ -74,6 +74,10 @@ trains with `make train`.
   First run on `kaggle-kitchenware-v1` (2026-10-09): test mAP50 0.984, mAP50-95 0.961 on
   single-object close-ups; details in the data card. Still needs in-domain counter data.
 - [ ] Compare model sizes (n/s) for accuracy versus speed on the 8 GB GPU.
+- [x] Tiled inference for wide counter photos and a `preview` command (2026-10-12, branch
+  `feature/tiled-inference`): on the two test photos the Kaggle model went from 2 of 10 objects
+  (640 px) to 9 of 10 correct, with 1 wrong class and 2 false boxes. Settings still need
+  checking on held-out sessions. Tests in `packages/detection/tests/test_tiled_inference.py`.
 - [ ] Convert predictions to `FrameDetections` with tests for coordinate conversion.
 - [ ] Choose and record the confidence threshold on the validation split.
 
