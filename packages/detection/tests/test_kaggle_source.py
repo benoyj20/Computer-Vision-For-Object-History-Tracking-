@@ -3,12 +3,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from objhist_detection.kaggle_kitchenware.source import (
-    EXIF_ORIENTATION_TAG,
-    SourceDatasetError,
-    load_upright_rgb,
-    read_labeled_images,
-)
+from objhist_detection.annotation import EXIF_ORIENTATION_TAG, load_upright_rgb
+from objhist_detection.kaggle_kitchenware.source import SourceDatasetError, read_labeled_images
 
 
 def test_reads_labels_and_keeps_leading_zeros_in_ids(kaggle_dir: Path) -> None:

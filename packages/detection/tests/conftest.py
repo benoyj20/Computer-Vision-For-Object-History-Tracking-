@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from objhist_detection.kaggle_kitchenware.proposals import BoxProposal, PixelBox, ReviewReason
+from objhist_detection.annotation import PixelBox
+from objhist_detection.kaggle_kitchenware.proposals import BoxProposal, ReviewReason
 
 DEFAULT_BOX = PixelBox(20, 40, 80, 160)
 

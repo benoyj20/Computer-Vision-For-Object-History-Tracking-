@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
 
-from objhist_detection.kaggle_kitchenware.source import CLASS_NAMES
+from objhist_detection.annotation import CLASS_NAMES, PixelBox
 
 LOW_CONFIDENCE_THRESHOLD = 0.4
 """Top boxes below this confidence go to review; chosen from the probe, not from test data."""
@@ -31,29 +31,6 @@ class ReviewReason(StrEnum):
     LOW_CONFIDENCE = "low_confidence"
     SECOND_OBJECT = "second_object"
     DUPLICATE_IMAGE = "duplicate_image"
-
-
-@dataclass(frozen=True)
-class PixelBox:
-    """Axis-aligned box in upright-image pixels (x_min, y_min, x_max, y_max)."""
-
-    x_min: float
-    y_min: float
-    x_max: float
-    y_max: float
-
-    def __post_init__(self) -> None:
-        if not (0 <= self.x_min < self.x_max and 0 <= self.y_min < self.y_max):
-            raise ValueError(f"invalid box {self}")
-
-    @property
-    def area(self) -> float:
-        return (self.x_max - self.x_min) * (self.y_max - self.y_min)
-
-    def intersection_area(self, other: "PixelBox") -> float:
-        width = min(self.x_max, other.x_max) - max(self.x_min, other.x_min)
-        height = min(self.y_max, other.y_max) - max(self.y_min, other.y_min)
-        return max(width, 0.0) * max(height, 0.0)
 
 
 @dataclass(frozen=True)

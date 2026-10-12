@@ -16,8 +16,8 @@ from enum import StrEnum
 from importlib import resources
 from pathlib import Path
 
+from objhist_detection.annotation import CLASS_NAMES
 from objhist_detection.kaggle_kitchenware.proposals import BoxProposal
-from objhist_detection.kaggle_kitchenware.source import CLASS_NAMES
 from objhist_detection.kaggle_kitchenware.splits import Split, SplitAssignment
 
 SPOT_CHECK_SEED = 5330

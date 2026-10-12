@@ -5,22 +5,16 @@ image ID to one image-level class; `test.csv` has no labels and is not used.
 """
 
 import csv
-import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageOps
-
-CLASS_NAMES: tuple[str, ...] = ("cup", "fork", "glass", "knife", "plate", "spoon")
-"""Dataset class order. A class's position here is its YOLO class index."""
+from objhist_detection.annotation import CLASS_NAMES
 
 LABELS_FILENAME = "train.csv"
 EXPECTED_COLUMNS = ["Id", "label"]
 # IDs become file names in exported datasets, so only allow characters safe in paths.
 IMAGE_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
-EXIF_ORIENTATION_TAG = 0x0112
-UPRIGHT_EXIF_ORIENTATION = 1
 
 
 class SourceDatasetError(ValueError):
@@ -69,23 +63,3 @@ def read_labeled_images(source_dir: Path) -> list[LabeledImage]:
     if not images:
         raise SourceDatasetError(f"{labels_path} has no labeled images")
     return images
-
-
-def file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def load_upright_rgb(path: Path) -> tuple[Image.Image, int]:
-    """Load an image rotated by its EXIF orientation, with the original orientation tag.
-
-    Boxes are always expressed in the upright frame, which is also how browsers display
-    the image, so review overlays and exported labels agree.
-    """
-    with Image.open(path) as image:
-        orientation = int(image.getexif().get(EXIF_ORIENTATION_TAG, UPRIGHT_EXIF_ORIENTATION))
-        upright = ImageOps.exif_transpose(image).convert("RGB")
-    return upright, orientation

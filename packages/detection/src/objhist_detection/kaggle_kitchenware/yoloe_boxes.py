@@ -1,8 +1,7 @@
 """Propose one box per Kaggle photo with text-prompted YOLOE (built into Ultralytics).
 
-YOLOE is prompted with all six class names and its class for the top box is recorded, but
-the label always comes from `train.csv`. Weights come from official Ultralytics
-releases; Ultralytics downloads them to its `weights_dir` setting on first use.
+YOLOE is prompted with all six class names (see `objhist_detection.yoloe_prompts`) and its
+class for the top box is recorded, but the label always comes from `train.csv`.
 """
 
 from collections.abc import Iterator, Sequence
@@ -10,40 +9,18 @@ from itertools import batched
 
 from ultralytics import YOLOE
 
+from objhist_detection.annotation import CLASS_NAMES, PixelBox, file_sha256, load_upright_rgb
 from objhist_detection.kaggle_kitchenware.proposals import (
     BoxCandidate,
     BoxProposal,
-    PixelBox,
     review_reasons_for,
     select_top_box,
 )
-from objhist_detection.kaggle_kitchenware.source import (
-    CLASS_NAMES,
-    LabeledImage,
-    file_sha256,
-    load_upright_rgb,
-)
+from objhist_detection.kaggle_kitchenware.source import LabeledImage
 
-DEFAULT_YOLOE_MODEL = "yoloe-26s-seg.pt"
-YOLOE_TEXT_PROMPTS: dict[str, str] = {
-    "cup": "cup",
-    "fork": "fork",
-    # "glass" alone also matches windows and glass surfaces.
-    "glass": "drinking glass",
-    "knife": "knife",
-    "plate": "plate",
-    "spoon": "spoon",
-}
 CANDIDATE_CONFIDENCE_FLOOR = 0.05
 """YOLOE boxes below this confidence are discarded before selecting the top box."""
 INFERENCE_IMAGE_SIZE_PX = 640
-
-
-def load_prompted_model(model_path: str) -> YOLOE:
-    """Load YOLOE with the class prompts; `model.ckpt_path` is the resolved weights file."""
-    model = YOLOE(model_path)
-    model.set_classes([YOLOE_TEXT_PROMPTS[name] for name in CLASS_NAMES])
-    return model
 
 
 def propose_boxes(

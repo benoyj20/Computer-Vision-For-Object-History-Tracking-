@@ -12,7 +12,8 @@ data/
 │   ├── roboflow-kitchen-items/
 │   └── sequences/<session-id>/
 ├── interim/      # pipeline state: proposals, frozen splits, review queue and reviews
-│   └── kaggle-kitchenware/
+│   ├── kaggle-kitchenware/
+│   └── counter-labels/
 ├── processed/    # YOLO-format datasets ready for training
 │   └── kitchen/
 │       ├── data.yaml
@@ -25,7 +26,7 @@ data/
 ## Provided snapshot sequences
 
 The project does not capture images itself; Benoy provides them. Each session is one folder of
-snapshots from a single fixed camera position, plus a manifest:
+phone snapshots of the counter, plus a manifest:
 
 ```text
 data/raw/sequences/<session-id>/
@@ -46,8 +47,11 @@ filename,captured_at
 - `captured_at` is ISO 8601 with a UTC offset. Placement intervals and "how long has it been
   out" answers come from these times, so they must be the real capture times, not file
   modification times.
-- The camera does not move within a session. If it moves, start a new session.
-- Images within a session have the same resolution.
+- The camera is handheld or loosely placed and may move between snapshots (Benoy's capture
+  method, decided 2026-10-12). Tracking therefore cannot assume an object keeps its pixel
+  position when nothing changed; association relies on appearance and on positions relative
+  to the counter.
+- Photos are JPEG (Android's default; an iPhone needs Camera > Formats > Most Compatible).
 - Use a short, descriptive session ID such as `2026-10-12-evening`. A session belongs to exactly
   one split (train, validation, or test).
 - For scripted evaluation scenarios, also include the list of changes that were made (what,
@@ -86,6 +90,34 @@ make train DATA=data/processed/kitchen/data.yaml
 - `export` refuses to run until every validation and test image has a verdict. It writes
   `data.yaml`, `images/`, `labels/`, `manifest.csv`, and `summary.json` with review outcomes;
   record those in the [data card](../docs/data-card.md).
+
+## Counter-session auto-labels
+
+Counter photos show several small objects, which the Kaggle close-up model misses.
+`objhist_detection.counter_labels` proposes every object box with YOLOE at 1280 px, a reviewer
+confirms each box's class, rejects false boxes, and draws missed objects, and reviewed photos
+are exported in YOLO format. From the repository root:
+
+```sh
+uv run python -m objhist_detection.counter_labels propose
+uv run python -m objhist_detection.counter_labels review-page
+# open the printed review.html, review every photo, download reviews.json into data/interim/counter-labels/
+uv run python -m objhist_detection.counter_labels split
+uv run python -m objhist_detection.counter_labels export
+```
+
+- `propose` reads every session under `data/raw/sequences/` and only processes photos added
+  since the last run (`--session <id>` limits it; `--force` re-proposes). It writes
+  `photos.csv`, `proposals.csv`, and `proposals.meta.json` (model hash, settings, versions).
+- On the review page, every proposed box needs Keep or Reject with the right class, and every
+  missed object needs a drawn box. Only photos marked done are exported. Re-run `review-page`
+  after saving `reviews.json` to continue with those reviews loaded.
+- `split` assigns new sessions to train, val, or test by photo count (70/15/15) and never moves
+  a session once assigned; `--assign <session>=test` chooses a split for a new session. The
+  photos of validation and test sessions should be reviewed by a person, since they measure
+  the detector.
+- `export` refuses to run while any validation or test photo is unreviewed and writes
+  `data/processed/counter/` with `data.yaml`, `manifest.csv`, and `summary.json`.
 
 ## Training
 
