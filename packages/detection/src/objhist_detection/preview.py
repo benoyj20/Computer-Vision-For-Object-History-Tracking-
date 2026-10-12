@@ -113,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         results.append(
             {
                 "photo": str(photo),
+                "width_px": image.width,
+                "height_px": image.height,
+                "tile_px": None if args.no_tiled else config.tile_px_for(image.width, image.height),
                 "detections": [json.loads(d.model_dump_json()) for d in detections],
             }
         )
