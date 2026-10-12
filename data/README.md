@@ -134,6 +134,28 @@ cutlery is not shrunk out of sight. Tiles are 0.32 of the photo's long side (128
 4000x2252 photo, 614 px on 1920x1080; 12 tiles either way), so any resolution works.
 `--no-tiled` runs a single pass at `--inference-px` instead.
 
+## Detections for the tracker
+
+To hand detector output to the tracker, run the detector over whole sessions:
+
+```sh
+uv run python -m objhist_detection.detect --weights runs/detect/<run>/weights/best.pt
+```
+
+It writes one file per session to
+`data/interim/detections/<detector version>/<session>.json` (format in
+[ADR 0005](../docs/adr/0005-detector-output-file-for-the-tracker.md)): every photo in capture
+order with its detections, plus the detector version, weights hash, confidence threshold, and
+inference settings. `--session <id>` (repeatable) limits the run, `--no-tiled`, `--inference-px`,
+and `--conf` work as in `preview`, and `--force` replaces existing files.
+
+- Capture times come from `manifest.csv` when the session has one, otherwise from each photo's
+  EXIF original time, sub-seconds, and UTC offset. Phones that record no offset need a
+  manifest. Every session is checked before the model loads.
+- The run stops on a photo it cannot read rather than leaving it out; a frame with no
+  detections means the detector ran and found nothing.
+- Boxes are in pixels of the upright photo (EXIF orientation applied).
+
 ## Training
 
 Train with the dataset's `data.yaml`, for example

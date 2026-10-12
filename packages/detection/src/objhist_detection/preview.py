@@ -19,7 +19,10 @@ from PIL import Image, ImageDraw, ImageFont
 from objhist_core import Detection
 from objhist_detection.annotation import file_sha256, load_upright_rgb
 from objhist_detection.counter_labels.sessions import PHOTO_SUFFIXES
-from objhist_detection.tiled_inference import TilingConfig, detect_tiled, to_detection
+from objhist_detection.inference_settings import (
+    add_inference_arguments,
+    inference_settings_from_args,
+)
 
 BOX_COLOR = (40, 220, 80)
 
@@ -71,16 +74,15 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(os.environ.get("OBJHIST_DATA_DIR", "data")) / "interim" / "previews",
     )
     parser.add_argument("--device", default="0", help="CUDA device index or 'cpu'")
-    parser.add_argument("--no-tiled", action="store_true", help="single pass over the whole photo")
-    parser.add_argument("--inference-px", type=int, default=1280, help="input size for --no-tiled")
-    parser.add_argument("--conf", type=float, default=TilingConfig().confidence_threshold)
+    add_inference_arguments(parser)
     args = parser.parse_args(argv)
 
     try:
+        settings = inference_settings_from_args(args)
         photos = find_photos(args.photos)
         if not args.weights.is_file():
             raise FileNotFoundError(f"{args.weights} not found")
-    except FileNotFoundError as error:
+    except (ValueError, FileNotFoundError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
@@ -92,19 +94,12 @@ def main(argv: list[str] | None = None) -> int:
 
     from objhist_detection.ultralytics_predictor import ultralytics_predictor
 
-    config = TilingConfig(confidence_threshold=args.conf)
     predict = ultralytics_predictor(YOLO(str(args.weights)), args.device)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     results = []
     for photo in photos:
         image, _ = load_upright_rgb(photo)
-        if args.no_tiled:
-            detections = [
-                to_detection(scored, image.width, image.height)
-                for scored in predict(image, args.inference_px, args.conf)
-            ]
-        else:
-            detections = detect_tiled(image, predict, config)
+        detections = settings.detect(image, predict)
         draw_detections(image, detections).save(
             args.out_dir / f"{photo.stem}_detections.jpg", quality=90
         )
@@ -115,7 +110,11 @@ def main(argv: list[str] | None = None) -> int:
                 "photo": str(photo),
                 "width_px": image.width,
                 "height_px": image.height,
-                "tile_px": None if args.no_tiled else config.tile_px_for(image.width, image.height),
+                "tile_px": (
+                    settings.tiling.tile_px_for(image.width, image.height)
+                    if settings.tiled
+                    else None
+                ),
                 "detections": [json.loads(d.model_dump_json()) for d in detections],
             }
         )
@@ -123,10 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         "created_at": datetime.now(UTC).isoformat(),
         "weights": str(args.weights),
         "weights_sha256": file_sha256(args.weights),
-        "mode": "single" if args.no_tiled else "tiled",
-        "single_pass_inference_px": args.inference_px if args.no_tiled else None,
-        "tiling": None if args.no_tiled else config.as_record(),
-        "confidence_threshold": args.conf,
+        "settings": settings.as_record(),
         "ultralytics_version": ultralytics.__version__,
         "photos": results,
     }

@@ -1,10 +1,10 @@
 import math
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
 
-from objhist_core import BoundingBox, Detection, FrameDetections
+from objhist_core import BoundingBox, Detection, DetectorRun, FrameDetections, SessionDetections
 
 CAPTURED_AT = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
 
@@ -14,13 +14,18 @@ def make_detection(**box: float) -> Detection:
     return Detection(class_name="cup", confidence=0.9, box=BoundingBox(**coords))
 
 
-def make_frame(*detections: Detection, captured_at: datetime = CAPTURED_AT) -> FrameDetections:
+def make_frame(
+    *detections: Detection,
+    captured_at: datetime = CAPTURED_AT,
+    frame_id: str = "frame-0001",
+    detector_version: str = "yolo26n-test",
+) -> FrameDetections:
     return FrameDetections(
-        frame_id="frame-0001",
+        frame_id=frame_id,
         captured_at=captured_at,
         image_width_px=640,
         image_height_px=480,
-        detector_version="yolo26n-test",
+        detector_version=detector_version,
         detections=detections,
     )
 
@@ -71,3 +76,88 @@ def test_contracts_are_immutable() -> None:
 
     with pytest.raises(ValidationError):
         detection.confidence = 0.1  # type: ignore[misc]  # asserting frozen behavior
+
+
+DETECTOR = DetectorRun(
+    version="yolo26n-test",
+    weights_sha256="0" * 64,
+    class_names=("cup", "fork"),
+    confidence_threshold=0.25,
+    settings={"mode": "tiled", "tile_fraction": 0.32, "tile_inference_px": 640},
+    framework_version="ultralytics 8.4.174",
+)
+
+
+def make_session(*frames: FrameDetections) -> SessionDetections:
+    return SessionDetections(
+        session_id="2026-10-12-evening",
+        created_at=CAPTURED_AT,
+        capture_time_source="exif",
+        detector=DETECTOR,
+        frames=frames,
+    )
+
+
+def session_frame(name: str, minutes: int, *detections: Detection) -> FrameDetections:
+    return make_frame(
+        *detections,
+        frame_id=f"2026-10-12-evening/{name}",
+        captured_at=CAPTURED_AT + timedelta(minutes=minutes),
+    )
+
+
+def test_session_round_trips_through_json_with_its_offset() -> None:
+    offset_time = datetime.fromisoformat("2026-10-12T13:47:54.365-04:00")
+    session = make_session(
+        make_frame(frame_id="2026-10-12-evening/a.jpg", captured_at=offset_time),
+        make_frame(
+            make_detection(),
+            frame_id="2026-10-12-evening/b.jpg",
+            captured_at=offset_time + timedelta(seconds=43),
+        ),
+    )
+
+    restored = SessionDetections.model_validate_json(session.model_dump_json())
+
+    assert restored == session
+    assert restored.frames[0].captured_at.utcoffset() == timedelta(hours=-4)
+
+
+def test_session_needs_at_least_one_frame() -> None:
+    with pytest.raises(ValidationError):
+        make_session()
+
+
+@pytest.mark.parametrize("minutes", [0, -1])
+def test_session_frames_must_be_in_strict_capture_order(minutes: int) -> None:
+    with pytest.raises(ValidationError, match="is not captured after"):
+        make_session(session_frame("a.jpg", 0), session_frame("b.jpg", minutes))
+
+
+def test_session_rejects_repeated_frames() -> None:
+    with pytest.raises(ValidationError, match="appears twice"):
+        make_session(session_frame("a.jpg", 0), session_frame("a.jpg", 1))
+
+
+def test_session_rejects_frames_from_another_session() -> None:
+    with pytest.raises(ValidationError, match="is not in session"):
+        make_session(make_frame(frame_id="2026-10-13-morning/a.jpg"))
+
+
+def test_session_rejects_frames_from_another_detector() -> None:
+    other = make_frame(frame_id="2026-10-12-evening/a.jpg", detector_version="yoloe-26s")
+
+    with pytest.raises(ValidationError, match="has detector yoloe-26s"):
+        make_session(other)
+
+
+def test_session_rejects_classes_the_detector_does_not_list() -> None:
+    plate = Detection(class_name="plate", confidence=0.9, box=make_detection().box)
+
+    with pytest.raises(ValidationError, match="'plate'"):
+        make_session(session_frame("a.jpg", 0, plate))
+
+
+def test_detector_run_needs_a_full_weights_hash() -> None:
+    with pytest.raises(ValidationError):
+        DETECTOR.model_validate(DETECTOR.model_dump() | {"weights_sha256": "abc123"})
