@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Counter Box Review</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f7f5;
+        --surface: #ffffff;
+        --text: #1d1d1b;
+        --muted: #5f5f5a;
+        --border: #d6d6d0;
+        --undecided: #d100d1;
+        --keep: #138a36;
+        --reject: #c0261b;
+        --drawn: #0077cc;
+        --focus: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161615;
+          --surface: #222220;
+          --text: #ececea;
+          --muted: #a5a59f;
+          --border: #3b3b38;
+          --undecided: #ff4dff;
+          --keep: #4ade80;
+          --reject: #f87171;
+          --drawn: #38bdf8;
+          --focus: #60a5fa;
+        }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, sans-serif; }
+      header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px; }
+      h1 { font-size: 18px; margin: 0 0 6px; }
+      h2 { font-size: 16px; margin: 0; overflow-wrap: anywhere; }
+      details { color: var(--muted); margin: 4px 0 8px; }
+      details ul { margin: 6px 0; padding-left: 20px; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+      label { display: inline-flex; gap: 6px; align-items: center; }
+      input, select, button { font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; min-height: 44px; }
+      button { cursor: pointer; }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+      button[aria-pressed="true"] { border-width: 2px; font-weight: 600; }
+      .keep[aria-pressed="true"] { border-color: var(--keep); color: var(--keep); }
+      .reject[aria-pressed="true"] { border-color: var(--reject); color: var(--reject); }
+      :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+      #progress { color: var(--muted); margin: 6px 0 0; }
+      #message { margin: 6px 0 0; color: var(--reject); }
+      main { padding: 16px; display: grid; gap: 16px; }
+      @media (min-width: 1100px) { main { grid-template-columns: minmax(0, 3fr) minmax(320px, 1fr); align-items: start; } }
+      .stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; }
+      .stage img { display: block; width: 100%; height: auto; }
+      .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+      .stage text { font: 700 var(--label-size, 40px) system-ui, sans-serif; paint-order: stroke; stroke: #000; stroke-width: 6px; }
+      aside { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; gap: 10px; }
+      ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+      li { border: 1px solid var(--border); border-left-width: 6px; border-radius: 6px; padding: 8px; display: grid; gap: 6px; }
+      li[data-state="undecided"] { border-left-color: var(--undecided); }
+      li[data-state="keep"] { border-left-color: var(--keep); }
+      li[data-state="reject"] { border-left-color: var(--reject); }
+      li[data-state="drawn"] { border-left-color: var(--drawn); }
+      .meta { color: var(--muted); font-size: 13px; }
+      .status { font-weight: 600; }
+      .done { color: var(--keep); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Counter box review</h1>
+      <details>
+        <summary>How to review</summary>
+        <ul>
+          <li>Every kitchen object of a listed class needs exactly one box with the right class.</li>
+          <li>For each numbered box: pick the correct class and <strong>Keep</strong> it if it tightly encloses one whole
+            object; otherwise <strong>Reject</strong> it (background, part of an object, duplicate, or not a listed class).</li>
+          <li>If an object has no good box, choose its class under "New box class" and drag a box around it on the photo.</li>
+          <li>Leave objects that are not cup, fork, glass, knife, plate or spoon unboxed.</li>
+          <li>When every object is boxed, press <strong>All objects boxed: mark done</strong>. Only done photos are exported.</li>
+          <li>Progress is saved in this browser. Download <code>reviews.json</code> into the work folder; regenerating
+            the page loads it again.</li>
+        </ul>
+      </details>
+      <div class="row">
+        <label>Reviewer <input id="reviewer" autocomplete="name" placeholder="Your name" /></label>
+        <button id="previous" type="button">Previous photo</button>
+        <label>Photo <select id="photo-select"></select></label>
+        <button id="next" type="button">Next photo</button>
+        <button id="next-undone" type="button">Next not done</button>
+        <button id="download" type="button">Download reviews.json</button>
+      </div>
+      <p id="progress" aria-live="polite"></p>
+      <p id="message" role="alert"></p>
+    </header>
+    <main>
+      <section aria-labelledby="photo-title">
+        <div class="stage" id="stage"></div>
+      </section>
+      <aside>
+        <h2 id="photo-title"></h2>
+        <div class="meta" id="photo-meta"></div>
+        <div class="row">
+          <label>New box class <select id="new-class"></select></label>
+          <button id="keep-all" type="button">Keep all undecided</button>
+        </div>
+        <ol id="box-list" aria-label="Boxes in this photo"></ol>
+        <p class="status" id="photo-status"></p>
+        <button id="mark-done" type="button">All objects boxed: mark done</button>
+      </aside>
+    </main>
+    <script type="application/json" id="review-data">__REVIEW_DATA__</script>
+    <script>
+      "use strict";
+      const data = JSON.parse(document.getElementById("review-data").textContent);
+      const SVG_NS = "http://www.w3.org/2000/svg";
+      const $ = (id) => document.getElementById(id);
+      const message = $("message");
+      let current = 0;
+
+      // Draft state per photo: proposal decisions, drawn boxes, and the saved review when done.
+      const drafts = new Map();
+      function draftFromReview(photo, review) {
+        const decisions = {};
+        for (const proposal of photo.proposals) decisions[proposal.id] = { keep: null, className: proposal.className };
+        const drawn = [];
+        if (review) {
+          for (const id of review.rejected_proposals) decisions[id] = { keep: false, className: decisions[id].className };
+          for (const object of review.objects) {
+            if (object.source === "proposed") decisions[object.proposal_id] = { keep: true, className: object.class_name };
+            else drawn.push({ className: object.class_name, box: object.box });
+          }
+        }
+        return { decisions, drawn, review: review || null };
+      }
+      for (const photo of data.photos) drafts.set(photo.key, draftFromReview(photo, photo.review));
+
+      // Saved browser progress replaces the embedded review only when it is newer.
+      try {
+        const saved = JSON.parse(localStorage.getItem(data.storageKey) || "null");
+        if (saved) {
+          $("reviewer").value = saved.reviewer || "";
+          for (const photo of data.photos) {
+            const savedDraft = saved.drafts && saved.drafts[photo.key];
+            if (!savedDraft) continue;
+            const embedded = drafts.get(photo.key).review;
+            const savedTime = savedDraft.review ? Date.parse(savedDraft.review.reviewed_at) : Infinity;
+            if (!embedded || savedTime > Date.parse(embedded.reviewed_at)) drafts.set(photo.key, savedDraft);
+          }
+        }
+      } catch (error) {
+        message.textContent = "Saved progress could not be read; download reviews.json often.";
+      }
+
+      function save() {
+        try {
+          localStorage.setItem(data.storageKey, JSON.stringify({ reviewer: $("reviewer").value, drafts: Object.fromEntries(drafts) }));
+        } catch (error) {
+          message.textContent = "Progress could not be saved in this browser; download reviews.json now.";
+        }
+      }
+
+      function photo() { return data.photos[current]; }
+      function draft() { return drafts.get(photo().key); }
+      function changed() {
+        draft().review = null;
+        save();
+        render();
+      }
+
+      for (const name of data.classes) $("new-class").add(new Option(name, name));
+      data.photos.forEach((p, index) => $("photo-select").add(new Option(`${index + 1}. ${p.key}`, String(index))));
+
+      function stateOf(decision) {
+        return decision.keep === null ? "undecided" : decision.keep ? "keep" : "reject";
+      }
+
+      function renderStage() {
+        const p = photo();
+        const d = draft();
+        const stage = $("stage");
+        const image = document.createElement("img");
+        image.src = p.src;
+        image.width = p.width;
+        image.height = p.height;
+        image.alt = `Photo ${p.key} with ${p.proposals.length} proposed and ${d.drawn.length} drawn boxes outlined; the list beside it describes each box`;
+        const svg = document.createElementNS(SVG_NS, "svg");
+        svg.setAttribute("viewBox", `0 0 ${p.width} ${p.height}`);
+        svg.setAttribute("preserveAspectRatio", "none");
+        svg.setAttribute("aria-hidden", "true");
+        svg.style.setProperty("--label-size", `${Math.round(p.width / 60)}px`);
+        const stroke = Math.max(3, p.width / 400);
+        const addBox = (box, color, dashed, label) => {
+          const [x1, y1, x2, y2] = box;
+          const rect = document.createElementNS(SVG_NS, "rect");
+          rect.setAttribute("x", x1); rect.setAttribute("y", y1);
+          rect.setAttribute("width", x2 - x1); rect.setAttribute("height", y2 - y1);
+          rect.setAttribute("fill", "none");
+          rect.setAttribute("stroke", color);
+          rect.setAttribute("stroke-width", stroke);
+          if (dashed) rect.setAttribute("stroke-dasharray", `${stroke * 4} ${stroke * 3}`);
+          const text = document.createElementNS(SVG_NS, "text");
+          text.setAttribute("x", x1 + stroke * 2);
+          text.setAttribute("y", y1 + p.width / 50);
+          text.setAttribute("fill", color);
+          text.textContent = label;
+          svg.append(rect, text);
+        };
+        const css = getComputedStyle(document.documentElement);
+        const color = (name) => css.getPropertyValue(name).trim();
+        p.proposals.forEach((proposal, index) => {
+          const decision = d.decisions[proposal.id];
+          const state = stateOf(decision);
+          addBox(proposal.box, color(`--${state}`), state === "reject", `${index + 1} ${decision.className}`);
+        });
+        d.drawn.forEach((drawn, index) => addBox(drawn.box, color("--drawn"), false, `D${index + 1} ${drawn.className}`));
+
+        // Drag on the photo to draw a box for a missed object.
+        let start = null;
+        let rubber = null;
+        const toImage = (event) => {
+          const rect = svg.getBoundingClientRect();
+          const x = ((event.clientX - rect.left) / rect.width) * p.width;
+          const y = ((event.clientY - rect.top) / rect.height) * p.height;
+          return [Math.min(Math.max(x, 0), p.width), Math.min(Math.max(y, 0), p.height)];
+        };
+        svg.addEventListener("pointerdown", (event) => {
+          start = toImage(event);
+          svg.setPointerCapture(event.pointerId);
+          rubber = document.createElementNS(SVG_NS, "rect");
+          rubber.setAttribute("fill", "none");
+          rubber.setAttribute("stroke", color("--drawn"));
+          rubber.setAttribute("stroke-width", stroke);
+          svg.append(rubber);
+        });
+        svg.addEventListener("pointermove", (event) => {
+          if (!start) return;
+          const [x, y] = toImage(event);
+          rubber.setAttribute("x", Math.min(start[0], x)); rubber.setAttribute("y", Math.min(start[1], y));
+          rubber.setAttribute("width", Math.abs(x - start[0])); rubber.setAttribute("height", Math.abs(y - start[1]));
+        });
+        svg.addEventListener("pointerup", (event) => {
+          if (!start) return;
+          const [x, y] = toImage(event);
+          const round = (value) => Math.round(value * 10) / 10;
+          const box = [round(Math.min(start[0], x)), round(Math.min(start[1], y)), round(Math.max(start[0], x)), round(Math.max(start[1], y))];
+          start = null;
+          rubber.remove();
+          if (box[2] - box[0] < data.minDrawnSide || box[3] - box[1] < data.minDrawnSide) return;
+          d.drawn.push({ className: $("new-class").value, box });
+          changed();
+        });
+        stage.replaceChildren(image, svg);
+      }
+
+      function classSelect(value, onChange) {
+        const select = document.createElement("select");
+        for (const name of data.classes) select.add(new Option(name, name));
+        select.value = value;
+        select.addEventListener("change", () => onChange(select.value));
+        return select;
+      }
+
+      function renderList() {
+        const p = photo();
+        const d = draft();
+        const items = p.proposals.map((proposal, index) => {
+          const decision = d.decisions[proposal.id];
+          const li = document.createElement("li");
+          li.dataset.state = stateOf(decision);
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          const low = proposal.confidence < data.lowConfidence ? ", low confidence: check closely" : "";
+          meta.textContent = `Box ${index + 1}: detector says ${proposal.className} (${proposal.confidence.toFixed(2)})${low}`;
+          const row = document.createElement("div");
+          row.className = "row";
+          const label = document.createElement("label");
+          label.append("Class", classSelect(decision.className, (value) => { decision.className = value; changed(); }));
+          const keep = document.createElement("button");
+          keep.type = "button"; keep.className = "keep"; keep.textContent = "Keep";
+          keep.setAttribute("aria-pressed", String(decision.keep === true));
+          keep.addEventListener("click", () => { decision.keep = true; changed(); });
+          const reject = document.createElement("button");
+          reject.type = "button"; reject.className = "reject"; reject.textContent = "Reject";
+          reject.setAttribute("aria-pressed", String(decision.keep === false));
+          reject.addEventListener("click", () => { decision.keep = false; changed(); });
+          row.append(label, keep, reject);
+          li.append(meta, row);
+          return li;
+        });
+        d.drawn.forEach((drawn, index) => {
+          const li = document.createElement("li");
+          li.dataset.state = "drawn";
+          const meta = document.createElement("div");
+          meta.className = "meta";
+          meta.textContent = `Drawn box D${index + 1}`;
+          const row = document.createElement("div");
+          row.className = "row";
+          const label = document.createElement("label");
+          label.append("Class", classSelect(drawn.className, (value) => { drawn.className = value; changed(); }));
+          const remove = document.createElement("button");
+          remove.type = "button"; remove.textContent = "Delete";
+          remove.addEventListener("click", () => { d.drawn.splice(index, 1); changed(); });
+          row.append(label, remove);
+          li.append(meta, row);
+          items.push(li);
+        });
+        $("box-list").replaceChildren(...items);
+      }
+
+      function undecidedCount(d) {
+        return Object.values(d.decisions).filter((decision) => decision.keep === null).length;
+      }
+
+      function render() {
+        const p = photo();
+        const d = draft();
+        $("photo-select").value = String(current);
+        $("photo-title").textContent = `${current + 1} of ${data.photos.length}: ${p.key}`;
+        $("photo-meta").textContent = `${p.width}x${p.height} px, ${p.proposals.length} proposed boxes`;
+        $("previous").disabled = current === 0;
+        $("next").disabled = current === data.photos.length - 1;
+        renderStage();
+        renderList();
+        const undecided = undecidedCount(d);
+        const status = $("photo-status");
+        status.className = d.review ? "status done" : "status";
+        status.textContent = d.review
+          ? `Done: ${d.review.objects.length} objects, reviewed by ${d.review.reviewer}`
+          : undecided ? `${undecided} boxes still need Keep or Reject` : "Not done yet";
+        $("mark-done").disabled = Boolean(d.review) || undecided > 0;
+        const done = [...drafts.values()].filter((value) => value.review).length;
+        $("progress").textContent = `${done} of ${data.photos.length} photos done`;
+      }
+
+      $("mark-done").addEventListener("click", () => {
+        const reviewer = $("reviewer").value.trim();
+        if (!reviewer) {
+          message.textContent = "Enter your name as reviewer before marking photos done.";
+          $("reviewer").focus();
+          return;
+        }
+        message.textContent = "";
+        const p = photo();
+        const d = draft();
+        const objects = [];
+        const rejected = [];
+        for (const proposal of p.proposals) {
+          const decision = d.decisions[proposal.id];
+          if (decision.keep) objects.push({ class_name: decision.className, box: proposal.box, source: "proposed", proposal_id: proposal.id });
+          else rejected.push(proposal.id);
+        }
+        for (const drawn of d.drawn) objects.push({ class_name: drawn.className, box: drawn.box, source: "drawn", proposal_id: null });
+        d.review = { key: p.key, reviewer, reviewed_at: new Date().toISOString(), objects, rejected_proposals: rejected };
+        save();
+        render();
+      });
+
+      $("keep-all").addEventListener("click", () => {
+        for (const decision of Object.values(draft().decisions)) if (decision.keep === null) decision.keep = true;
+        changed();
+      });
+
+      $("download").addEventListener("click", () => {
+        const photos = data.photos.map((p) => drafts.get(p.key).review).filter(Boolean);
+        const blob = new Blob([JSON.stringify({ format: data.format, photos }, null, 2) + "\n"], { type: "application/json" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "reviews.json";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      });
+
+      const go = (index) => { current = index; render(); window.scrollTo(0, 0); };
+      $("previous").addEventListener("click", () => go(current - 1));
+      $("next").addEventListener("click", () => go(current + 1));
+      $("photo-select").addEventListener("change", () => go(Number($("photo-select").value)));
+      $("next-undone").addEventListener("click", () => {
+        for (let step = 1; step <= data.photos.length; step++) {
+          const index = (current + step) % data.photos.length;
+          if (!drafts.get(data.photos[index].key).review) return go(index);
+        }
+        message.textContent = "Every photo is done.";
+      });
+      $("reviewer").addEventListener("change", save);
+      render();
+    </script>
+  </body>
+</html>
