@@ -331,11 +331,23 @@ were not viewed. Causes:
   whose black handle blends into the black granite was boxed only along its blade; a spoon
   lying across the fork was boxed together with it; a fork partly behind the glass was boxed
   only where it shows.
-- **Occlusion was labeled inconsistently:** the fork's label runs through the glass, but the
-  knife's label stops at the mug that hides its handle. A single rule is needed, such as
-  "box what is visible, including through clear glass".
+- **Partly hidden cutlery:** the fork's label runs through the clear glass, and the knife's
+  label stops at the ceramic mug that hides its handle. That is one consistent rule, not two
+  (see the label audit below); the model boxed the fork only where it shows and drew the
+  knife's box into the mug.
 - **Backlit spoon in the glass:** read as knife (0.47), with only its bright handle visible.
 - No false boxes on the wall switches or the stove grates.
+
+**Label audit for partly hidden objects (2026-10-12).** Rule, now on the review page and in
+[data/README.md](../data/README.md#counter-session-auto-labels): a box encloses the visible part
+of its object; parts seen through clear or tinted glass count as visible, and parts hidden
+behind or inside something opaque (a ceramic mug, under the plate) are left out. Every photo
+where a labeled fork, knife, or spoon box covers more than 10% of a mug or glass box was
+checked: 40 of the 100 photos (31 train, 5 val, 4 test). Claude viewed downscaled crops without
+metadata showing the labels only, with no detector output, plus 3 full photos where the crop
+was too tight. All 40 already follow the rule, so no label was changed and no retraining is
+needed for it. Cutlery under the plate is not covered by the 10% filter; the 3 full photos
+showed none that broke the rule.
 
 **Merging duplicate single-pass boxes (2026-10-12).** Single-pass output now goes through the
 tiled merge rule by default (`merge_duplicates`, thresholds 0.5 same-class IoU, 0.7
