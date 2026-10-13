@@ -360,6 +360,95 @@ and a spoon, most likely cutlery lying close enough to another piece to be merge
 default was not changed on the basis of the test result. Revisit it, and the cross-class
 threshold, on a larger validation set. `--no-merge-duplicates` keeps the old behavior.
 
+### Dataset `counter-2026-10-13` (adds two night sessions)
+
+`data/processed/counter-2026-10-13/`; same class order. It is `counter-2026-10-12` plus 45
+photos shot at night (23:14–23:30, -04:00) with the same seven objects. They were split at a
+45 s pause into `2026-10-12-2314` (20 photos, val) and `2026-10-12-2322` (25 photos, test), at
+Benoy's choice. The earlier sessions keep their splits.
+
+| Split | Photos | cup | fork | glass | knife | plate | spoon |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| train | 75 | 150 | 75 | 75 | 75 | 75 | 75 |
+| val | 29 | 58 | 29 | 29 | 29 | 29 | 29 |
+| test | 41 | 82 | 41 | 41 | 41 | 41 | 41 |
+
+- **Proposals:** YOLOE ran on the CPU while the GPU was training. It matched the object list in
+  none of the 45 photos (glass as cup in all 45, 15 forks and 22 knives missing, 45 extra
+  spoons).
+- **Review:** Benoy reviewed all 45 (recorded once as `Benoy` and once as `benoy`, the same
+  person). The label check flagged 9 photos, all of them slips: 5 glasses left as cup, 2 forks
+  labeled spoon or knife, a knife standing in a mug left unboxed, and a glass left unboxed.
+  Claude viewed the 9 as downscaled copies without metadata, with labels only, and Benoy
+  corrected them. All 145 photos now match the list. Review totals over the 145 photos: 658
+  kept, 203 relabeled, 230 rejected, 154 drawn.
+- **Hashes:** `manifest.csv` `4ae66c5a60b6ab3ce60e1392ce8e5faa94b4be9d4cff04b3a3b748a047794dfd`,
+  `reviews.json` `f92109162f7c509e103aae999b84c523aaf7c769428ba6d70175a04130b7e395`,
+  `session_splits.csv` `25380b745b5020472c9eecc7265ace24fe6e0d5216cdfa119b3588358a12d33e`.
+
+### Model comparison on the 29 validation photos (2026-10-13)
+
+None of these models trained on the validation photos. Counts use `score_detections`
+(`detector-counts-v1`, confidence ≥ 0.25). The cutlery columns count forks, knives, and spoons,
+87 objects in all.
+
+| Model | Mode | Correct (of 203) | Cutlery correct (of 87) | False cutlery boxes | Glass read as cup |
+| --- | --- | --- | --- | --- | --- |
+| `yolo26n-counter-kitchen-1280-v2` | single pass, merged | 184 | 68 | 4 | 0 |
+| `yolo26n-counter-kitchen-1280-v2` | tiled | 189 | 73 | 10 | 0 |
+| `yolo26s-counter-kitchen-1280-b4` | single pass, merged | 181 | 69 | 7 | 4 |
+| `yolo26s-counter-kitchen-1280-b4` | tiled | 186 | 73 | 10 | 3 |
+
+- **`yolo26s-counter-kitchen-1280-b4`:** official `yolo26s.pt` (SHA-256
+  `646f8bc3fe0a656803d95c294f7852321748cb29d13466a1af8862e2db384a1b`) trained on
+  `counter-plus-kitchen-2026-10-12` at 1280 px for 30 epochs, batch 4, seed 0; 1.94 h; `best.pt`
+  `54746e5dd77c8f90a77aa833558d71d743d2fa87f971d1fd4aa3accd9ec36185`. A batch-8 attempt
+  (`yolo26s-counter-kitchen-1280`) needed 10.7 GB, spilled into system memory at 18.7 s per
+  step, and was stopped in epoch 1. **Result:** the larger model found no more cutlery than the
+  nano and added glass-as-cup errors, so the nano was kept. It started from COCO weights rather
+  than Kaggle-trained weights, so model size is not the only difference.
+- **Confidence threshold (nano, single pass):** at thresholds from 0.05 to 0.50 the correct
+  count ranged from 186 to 182, while false boxes went from 16 down to 4. The threshold stays at
+  0.25.
+- **`yolo26n-counter-kitchen-1600-e15`** (nano at 1600 px, 15 epochs, batch 4, data
+  `counter-plus-kitchen-2026-10-13`): stopped after epoch 8 at Benoy's request. It had stayed
+  at about 0.78–0.80 mAP50-95 for four epochs (best 0.798 at epoch 5; `best.pt`
+  `09b66d9bb113aa707b3b7803310cda10d1cd5240e9bef962ee0f70f5f9c9f49b`), against 0.820 for the
+  1280 px nano on the same 29 photos (`yolo detect val`). Higher resolution was not pursued.
+
+### Final training run `yolo26n-counter-final-1280-e15` (2026-10-13)
+
+- **Data:** `data/processed/counter-final-2026-10-13/data.yaml`. Kaggle train plus every
+  counter photo except session `2026-10-12-1643`: train 75, val 29, and the night test session
+  `2026-10-12-2322` (25), which was moved into training at Benoy's request. That is 129 photos,
+  each listed 10 times, 4,824 entries in all. Because Ultralytics' val (session 1624) is also
+  trained on, the epoch count was fixed at 15 in advance and the last epoch's weights are used.
+- **Command:** `make train DATA=data/processed/counter-final-2026-10-13/data.yaml
+  MODEL=runs/detect/runs/detect/yolo26n-kitchen/weights/best.pt EPOCHS=15 IMGSZ=1280 BATCH=8
+  RUN_NAME=yolo26n-counter-final-1280-e15`. It used seed 0 and took 0.57 h on the RTX 5070
+  Laptop GPU. `last.pt` (copied to `final.pt`) has SHA-256
+  `3d2d29c4662893802f5b4752b10eb201b5f971f4c7cfdb6c4fd28aa7ccb19c89`.
+- **Held-out test:** session `2026-10-12-1643`, 16 afternoon photos with 112 objects, 48 of
+  them cutlery. No model has trained on it. Scored once.
+
+| Model | Mode | Correct | Missed | False boxes | Cutlery correct (of 48) | mAP50 | mAP50-95 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `yolo26n-counter-kitchen-1280-v2` | single pass, merged | 95 | 11 | 6 | 31 | 0.885 | 0.782 |
+| `yolo26n-counter-kitchen-1280-v2` | tiled | 99 | 6 | 8 | 35 | – | – |
+| `yolo26n-counter-final-1280-e15` | single pass, merged | **98** | **7** | **3** | **34** | **0.908** | **0.796** |
+| `yolo26n-counter-final-1280-e15` | tiled | 99 | 7 | 8 | 35 | – | – |
+
+Cutlery mAP50-95: fork 0.618 → 0.585, knife 0.613 → 0.645, spoon 0.632 → 0.705.
+
+- **What changed:** with the 54 extra photos (45 of them night), the single pass found 3 more
+  pieces of cutlery and drew half as many false boxes. It now matches the old model's tiled
+  cutlery count without tiling's cost or its extra false boxes. Spoons improved most; forks got
+  slightly worse (3 forks read as spoon).
+- **Caveats:** these are 16 photos and 48 pieces of cutlery, so a 3-object difference is small.
+  The test session is from the same afternoon, counter, and objects as the training data. Now
+  that both night sessions are in training, no held-out night photos remain to measure night
+  performance.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
