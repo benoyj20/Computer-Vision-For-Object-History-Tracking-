@@ -161,7 +161,9 @@ confidence 0.25 or above, plus a wrong "cup" box on the plate in the first photo
    is not proposed as both cup and glass.
 2. A reviewer keeps or rejects each proposal, sets its class, and draws boxes for missed
    objects. A photo is exported only once every proposal has a verdict and it is marked done.
-   Proposed boxes cannot be resized; a poor box is rejected and redrawn.
+   Since 2026-10-13 a loose or cut-off box can be adjusted (drag handles or type edges); the
+   review records it as `adjusted`, and the export's `kept_adjusted` counts it. Earlier
+   reviews could only keep a proposed box as is or reject and redraw it.
 3. Whole sessions are assigned to splits; validation and test sessions must be fully reviewed.
 
 **First check (2026-10-12, 2 photos, pipeline test only).**
