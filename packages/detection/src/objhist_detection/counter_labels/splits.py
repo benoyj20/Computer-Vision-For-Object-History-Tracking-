@@ -58,6 +58,28 @@ def assign_new_sessions(
     return assignments
 
 
+HELD_OUT_SPLITS = frozenset({"val", "test"})
+
+
+def check_held_out_proposals(
+    assignments: Mapping[str, str], sessions_with_trained_proposals: set[str]
+) -> None:
+    """Refuse validation or test sessions whose boxes were proposed by a trained detector.
+
+    Their labels measure that detector, so they must start from an independent proposer.
+    """
+    bad = sorted(
+        session
+        for session in sessions_with_trained_proposals
+        if assignments.get(session) in HELD_OUT_SPLITS
+    )
+    if bad:
+        raise ValueError(
+            f"{', '.join(bad)} would be held out but has trained-detector proposals; assign it "
+            "to train (--assign SESSION=train) or propose it again with YOLOE (--force)"
+        )
+
+
 def write_splits(path: Path, assignments: Mapping[str, str]) -> None:
     with path.open("w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
