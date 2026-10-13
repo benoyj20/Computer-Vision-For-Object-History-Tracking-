@@ -1,7 +1,8 @@
 """Reviews of counter-photo proposals: the `reviews.json` contract and the review page.
 
 A photo's review lists every object in it: proposed boxes the reviewer kept (with the class
-the reviewer chose) and boxes the reviewer drew for missed objects. Every proposal of a
+the reviewer chose, and the box itself if the reviewer adjusted it) and boxes the reviewer drew
+for missed objects. Every proposal of a
 reviewed photo is either kept or rejected, so a reviewed photo's labels are complete; an
 unlabeled object would teach the detector that the object is background.
 """
@@ -28,9 +29,10 @@ from objhist_detection.counter_labels.proposals import LOW_CONFIDENCE_HINT, Phot
 
 REVIEWS_FORMAT = "objhist-counter-reviews/1"
 MIN_DRAWN_BOX_SIDE_PX = 8.0
-"""Drawn boxes smaller than this on either side are treated as accidental clicks."""
+"""Drawn or adjusted boxes smaller than this on either side are treated as accidental drags."""
 PROPOSED_BOX_TOLERANCE_PX = 0.05
-"""Proposed boxes cannot be moved in review; coordinates must match within rounding."""
+"""A kept proposal that is not marked `adjusted` must keep the proposal's box within rounding,
+so an unintended change is caught instead of exported."""
 
 Corners = Annotated[list[float], Field(min_length=4, max_length=4)]
 
@@ -44,6 +46,8 @@ class ReviewedObject(_Model):
     box: Corners
     source: Literal["proposed", "drawn"]
     proposal_id: str | None = None
+    adjusted: bool = False
+    """The reviewer resized or moved a proposed box to fit the object more tightly."""
 
     @field_validator("class_name")
     @classmethod
@@ -58,6 +62,8 @@ class ReviewedObject(_Model):
             raise ValueError(
                 "proposal_id is required for proposed objects and absent for drawn ones"
             )
+        if self.adjusted and self.source != "proposed":
+            raise ValueError("only proposed boxes can be marked adjusted")
         return self
 
     def pixel_box(self) -> PixelBox:
@@ -97,19 +103,27 @@ def _check_photo_review(
             raise ReviewError(
                 f"{review.key}: box {reviewed.box} exceeds the {photo.width_px}x{photo.height_px} image"
             )
+        reviewer_box = reviewed.proposal_id is None or reviewed.adjusted
+        if (
+            reviewer_box
+            and min(box.x_max - box.x_min, box.y_max - box.y_min) < MIN_DRAWN_BOX_SIDE_PX
+        ):
+            kind = "drawn" if reviewed.proposal_id is None else "adjusted"
+            raise ReviewError(f"{review.key}: {kind} box {reviewed.box} is too small")
         if reviewed.proposal_id is None:
-            if min(box.x_max - box.x_min, box.y_max - box.y_min) < MIN_DRAWN_BOX_SIDE_PX:
-                raise ReviewError(f"{review.key}: drawn box {reviewed.box} is too small")
             continue
         proposed = proposals_by_id.get(reviewed.proposal_id)
         if proposed is None:
             raise ReviewError(f"{review.key}: unknown proposal {reviewed.proposal_id}")
         expected = (proposed.box.x_min, proposed.box.y_min, proposed.box.x_max, proposed.box.y_max)
-        if any(
+        if not reviewed.adjusted and any(
             abs(a - b) > PROPOSED_BOX_TOLERANCE_PX
             for a, b in zip(reviewed.box, expected, strict=True)
         ):
-            raise ReviewError(f"{review.key}: proposal {reviewed.proposal_id} box was changed")
+            raise ReviewError(
+                f"{review.key}: proposal {reviewed.proposal_id} box was changed without being "
+                "marked adjusted"
+            )
         kept_ids.append(reviewed.proposal_id)
     decided = kept_ids + list(review.rejected_proposals)
     if len(decided) != len(set(decided)):
