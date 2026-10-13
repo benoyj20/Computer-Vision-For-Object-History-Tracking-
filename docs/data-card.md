@@ -145,7 +145,8 @@ Inference took 7.6 ms per image at 640 px.
 
 ## Counter-session auto-labels
 
-Status: pipeline built and checked on the first two photos (2026-10-12); no dataset release.
+Status: dataset `counter-2026-10-12` exported from 100 photos reviewed by Benoy (2026-10-12),
+and one YOLO26n model fine-tuned on it; see [below](#dataset-counter-2026-10-12).
 Code: `packages/detection/src/objhist_detection/counter_labels/`; commands in
 [data/README.md](../data/README.md#counter-session-auto-labels).
 
@@ -220,6 +221,96 @@ downscaled with Lanczos and scored against the scaled reviewed labels, correct o
 - **Labeling tool:** YOLOE proposals covered all 10 objects at every resolution down to 640 px.
 - **Same caveat:** these are downscaled copies of the same two photos, not independent data.
 
+### Dataset `counter-2026-10-12`
+
+`data/processed/counter-2026-10-12/`; class order `cup, fork, glass, knife, plate, spoon`.
+
+- **Photos:** 100 handheld photos of one counter, shot 16:18:50–16:51:45 on 2026-10-12
+  (-04:00). The same seven objects are in every photo: white plate, silver fork, silver knife,
+  silver spoon, transparent glass, green mug, white design mug. The two mugs are both `cup`.
+- **Sessions:** the photos arrived as one folder. They were split into six sessions wherever
+  the shooting paused, which was every gap of at least 47 s (the median gap is 15 s). Each
+  session folder holds byte-identical copies of its photos (SHA-256 checked) and its own
+  `changes.xlsx`. The original folder `2026-10-12-counter-test` is still in place and must not
+  be proposed again.
+- **Splits** (`session_splits.csv`, frozen before review, SHA-256
+  `21c114dabd1274e6e90fce1646bcda5747da6d840f0ec1fca83debbe88afccfd`):
+
+| Split | Sessions | Photos | cup | fork | glass | knife | plate | spoon |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| train | 1618, 1628, 1635, 1647 | 75 | 150 | 75 | 75 | 75 | 75 | 75 |
+| val | 1624 | 9 | 18 | 9 | 9 | 9 | 9 | 9 |
+| test | 1643 | 16 | 32 | 16 | 16 | 16 | 16 | 16 |
+
+- **Proposals:** YOLOE matched the known object list in none of the 100 photos. It called the
+  glass "cup" in all 100, missed the fork in 48 and the knife in 29, and added 92 extra spoons.
+- **Review:** Benoy reviewed all 100 photos on the review page: 475 boxes kept with the same
+  class, 140 relabeled, 134 rejected, and 85 drawn. Each photo's labels were then compared with
+  the known object list. That flagged 7 photos (a glass left as cup, an extra spoon, a missing
+  mug, a fork labeled spoon), and Benoy corrected all 7. After the corrections all 100 photos
+  match the list. The check counts labels only; it cannot catch a box that is in the wrong
+  place.
+- **Hashes:** `manifest.csv` `ec54ffb8f36917fb735a146939eaff00aeed96130ab7c6e2c363703e27dd4dbb`,
+  `reviews.json` `fe5277059a01448265370e74272ac296f773b1637ec25df3ab30b85937feb6aa`. Input
+  hashes are in `summary.json`.
+- **Ultralytics rewrites these JPEGs:** the S25 adds data after the JPEG end marker, so
+  Ultralytics treats each image as corrupt and saves a repaired copy the first time it scans
+  the folder. It writes a new file, so the hard-linked raw photos are not changed (all 100 raw
+  hashes were re-checked). A training list that names the same image more than once makes
+  data-loader workers repair the same file at the same time; on Windows this fails and the
+  image is skipped. Before training, scan each split once with unique paths.
+
+### Training run `yolo26n-counter-kitchen-1280-v2` (2026-10-12)
+
+- **Data:** `data/processed/counter-plus-kitchen-2026-10-12/data.yaml`. Training uses
+  `kaggle-kitchenware-v1` train (3,534 images) plus `counter-2026-10-12` train, with each of
+  its 75 photos listed 10 times, 4,284 entries in all. The repetition makes counter photos
+  about 18% of each epoch instead of 2%. Validation and test use only `counter-2026-10-12`.
+- **Command:** `make train DATA=data/processed/counter-plus-kitchen-2026-10-12/data.yaml
+  MODEL=runs/detect/runs/detect/yolo26n-kitchen/weights/best.pt EPOCHS=30 IMGSZ=1280 BATCH=8
+  RUN_NAME=yolo26n-counter-kitchen-1280-v2`. It starts from the `yolo26n-kitchen` weights and
+  uses seed 0, `deterministic=True`, and the other Ultralytics 8.4.174 defaults.
+- **Hardware:** RTX 5070 Laptop GPU 8 GB, torch 2.14.1+cu130; 30 epochs in 0.94 h.
+- **Best checkpoint:** epoch 19, picked by Ultralytics fitness on the 9 validation photos.
+  `best.pt` SHA-256 `cb28044be38eed795f63b156f9f2a414213b5ecd4de1073aaa3434c3bf30b99a`.
+  Validation mAP50 0.923, mAP50-95 0.842. It reached about 0.95 / 0.83 by epoch 4 and then
+  stayed between 0.86 and 0.94, which is about as stable as 9 photos allow.
+- **Earlier attempt:** `yolo26n-counter-kitchen-1280` was stopped during epoch 1 because the
+  repeated paths made Ultralytics skip 76 entries (see the JPEG note above). It is kept, not
+  used.
+
+**Test comparison (session `2026-10-12-1643`, 16 photos, 112 objects), scored once after
+training.** "Correct" means the right class with IoU ≥ 0.5 at confidence ≥ 0.25. Predictions
+are matched greedily, most confident first. A box over an object of another class counts as
+wrong class. The matching script is not in the repository yet. mAP comes from
+`yolo detect val ... split=test`.
+
+| Detector | Correct | Wrong class | Missed | False boxes | mAP50 | mAP50-95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `yolo26n-kitchen`, single pass 640 px | 22 | 3 | 87 | 1 | 0.334 | 0.295 |
+| `yolo26n-kitchen`, single pass 1280 px | – | – | – | – | 0.365 | 0.337 |
+| `yolo26n-kitchen`, tiled | 48 | 0 | 64 | 7 | – | – |
+| YOLOE-26s zero-shot, 1280 px (pre-review proposals) | 67 | 27 | 18 | 7 | – | – |
+| `yolo26n-counter-kitchen-1280-v2`, single pass 1280 px | 97 | 6 | 9 | 9 | 0.885 | 0.782 |
+| `yolo26n-counter-kitchen-1280-v2`, tiled | 99 | 7 | 6 | 8 | – | – |
+
+Per class, for the new model at 1280 px:
+
+| | cup | fork | glass | knife | plate | spoon |
+| --- | --- | --- | --- | --- | --- | --- |
+| mAP50-95 | 0.918 | 0.619 | 0.995 | 0.613 | 0.916 | 0.632 |
+
+- **Tiled settings were not checked on held-out data.** On these test photos the old model
+  with tiling found 48 of 112 objects, below the 9 of 10 seen on the two photos the tiling
+  settings were tuned on. With the new model, tiling adds 2 correct objects and removes 3
+  misses, but it also adds 1 wrong class.
+- **Cutlery is the weak point:** fork, knife, and spoon score about 0.62 mAP50-95. The other
+  classes score at least 0.92.
+- **What this number means:** every session shows the same counter and the same seven objects
+  in the same 33 minutes, so the test measures this setup, not other kitchens, lighting, or
+  objects. The test labels started as YOLOE boxes, which may favor YOLOE's box placement. This
+  is one run with one seed and 16 test photos.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
@@ -239,6 +330,14 @@ zone.
 - `2026-10-12-counter-test` (test batch): 2 photos, 43 s apart; handheld phone (Galaxy S25
   Ultra) from standing height, so the framing shifts between photos; 4000x2252 JPEG; capture
   times from EXIF `DateTimeOriginal` with offset -04:00; change log `changes.xlsx`. Sessions without reliable capture times cannot support time-based answers.
+  Those two photos were later replaced. The folder now holds the 100 photos below, and the
+  pipeline-test proposals and reviews for the two photos are kept in
+  `data/interim/counter-labels/`.
+- `2026-10-12-1618`, `-1624`, `-1628`, `-1635`, `-1643`, `-1647` (first labeled batch): 100
+  photos in 6 sessions of 16, 9, 18, 28, 16, and 13 photos, about 15 s apart (median); same
+  phone, handheld; 4000x2252 JPEG; capture times from EXIF `DateTimeOriginal`,
+  `SubsecTimeOriginal`, and `OffsetTimeOriginal` (-04:00). Change logs list the same seven
+  objects as present in every photo.
 
 ## Class list
 
