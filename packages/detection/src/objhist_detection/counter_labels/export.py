@@ -97,6 +97,7 @@ def review_counts(review: PhotoReview, proposals: Sequence[ProposedBox]) -> dict
         "proposed": len(proposals),
         "kept_same_class": len(kept) - relabeled,
         "kept_relabeled": relabeled,
+        "kept_adjusted": sum(reviewed.adjusted for reviewed in kept),
         "rejected": len(review.rejected_proposals),
         "drawn": len(review.objects) - len(kept),
     }
@@ -144,6 +145,7 @@ def write_export(
                 export_name,
                 len(item.review.objects),
                 counts["kept_relabeled"],
+                counts["kept_adjusted"],
                 counts["drawn"],
                 counts["rejected"],
                 item.review.reviewer,
@@ -161,6 +163,7 @@ def write_export(
                 "export_name",
                 "objects",
                 "relabeled",
+                "adjusted",
                 "drawn",
                 "rejected_proposals",
                 "reviewer",
@@ -179,7 +182,14 @@ def write_export(
         "unreviewed_train_photos_excluded": len(plan.unreviewed_train),
         "review_totals": {
             name: review_totals[name]
-            for name in ("proposed", "kept_same_class", "kept_relabeled", "rejected", "drawn")
+            for name in (
+                "proposed",
+                "kept_same_class",
+                "kept_relabeled",
+                "kept_adjusted",
+                "rejected",
+                "drawn",
+            )
         },
         "reviewers": sorted({item.review.reviewer for item in plan.items}),
         "created_at": datetime.now(UTC).isoformat(),

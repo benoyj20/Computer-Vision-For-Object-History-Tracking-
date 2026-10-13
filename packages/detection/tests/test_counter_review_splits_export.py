@@ -6,7 +6,13 @@ import yaml
 from PIL import Image
 
 from objhist_detection.annotation import PixelBox, file_sha256
-from objhist_detection.counter_labels.export import plan_export, review_counts, write_export
+from objhist_detection.counter_labels.export import (
+    ExportItem,
+    label_text,
+    plan_export,
+    review_counts,
+    write_export,
+)
 from objhist_detection.counter_labels.proposals import Candidate, PhotoRecord, proposals_for_photo
 from objhist_detection.counter_labels.review import (
     REVIEWS_FORMAT,
@@ -75,9 +81,25 @@ def test_valid_review_is_read(tmp_path: Path) -> None:
         "proposed": 2,
         "kept_same_class": 0,
         "kept_relabeled": 1,
+        "kept_adjusted": 0,
         "rejected": 1,
         "drawn": 1,
     }
+
+
+def test_adjusted_proposal_keeps_the_reviewers_box(tmp_path: Path) -> None:
+    tighter = {**proposed("p1", "cup"), "box": [14, 12, 104, 108], "adjusted": True}
+    reviews = read_reviews(
+        write_reviews(tmp_path / "r.json", photo_review(objects=[tighter])), {KEY: PHOTO}, PROPOSALS
+    )
+
+    (cup,) = reviews[KEY].objects
+    assert (cup.box, cup.adjusted) == ([14, 12, 104, 108], True)
+    assert review_counts(reviews[KEY], PROPOSALS[KEY])["kept_adjusted"] == 1
+    # The label uses the adjusted box (center 59,60; size 90x96 in a 400x200 photo).
+    assert label_text(ExportItem(PHOTO, "train", reviews[KEY])) == (
+        "0 0.147500 0.300000 0.225000 0.480000\n"
+    )
 
 
 @pytest.mark.parametrize(
@@ -87,7 +109,29 @@ def test_valid_review_is_read(tmp_path: Path) -> None:
         ({"rejected_proposals": ["p1", "p2"]}, "kept or rejected more than once"),
         (
             {"objects": [{**proposed("p1", "cup"), "box": [10, 10, 120, 110]}]},
-            "p1 box was changed",
+            "p1 box was changed without being marked adjusted",
+        ),
+        (
+            {
+                "objects": [
+                    {**proposed("p1", "cup"), "box": [10, 10, 15, 110], "adjusted": True},
+                ]
+            },
+            "adjusted box .* is too small",
+        ),
+        (
+            {
+                "objects": [
+                    proposed("p1", "cup"),
+                    {
+                        "class_name": "fork",
+                        "box": [150, 40, 200, 190],
+                        "source": "drawn",
+                        "adjusted": True,
+                    },
+                ]
+            },
+            "only proposed boxes can be marked adjusted",
         ),
         (
             {
