@@ -316,6 +316,26 @@ Per class, for the new model at 1280 px:
   objects. The test labels started as YOLOE boxes, which may favor YOLOE's box placement. This
   is one run with one seed and 16 test photos.
 
+**Validation error analysis (2026-10-12, session `2026-10-12-1624`, 9 photos).** The new model
+at 1280 px, single pass, found 58 of 63 objects: 1 wrong class, 4 missed, 8 false boxes, all
+cutlery. Claude viewed the 9 photos as downscaled 2000 px copies without metadata, with each box
+drawn in a color for its outcome, under the AGENTS.md exception for Benoy's photos. Test photos
+were not viewed. Causes:
+
+- **Duplicate boxes on one object (5 of the 8 false boxes):** a second box of another class on
+  the same spoon (fork 0.78, fork 0.31, 0.34), or a second fork box inside the fork's box.
+  YOLO26 does not suppress overlapping boxes, and the single pass does not merge them; tiled
+  inference already merges.
+- **Boxes covering part of an object (3 pairs counted as both missed and false):** a knife
+  whose black handle blends into the black granite was boxed only along its blade; a spoon
+  lying across the fork was boxed together with it; a fork partly behind the glass was boxed
+  only where it shows.
+- **Occlusion was labeled inconsistently:** the fork's label runs through the glass, but the
+  knife's label stops at the mug that hides its handle. A single rule is needed, such as
+  "box what is visible, including through clear glass".
+- **Backlit spoon in the glass:** read as knife (0.47), with only its bright handle visible.
+- No false boxes on the wall switches or the stove grates.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The
