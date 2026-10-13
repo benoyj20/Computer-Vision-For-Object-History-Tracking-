@@ -156,6 +156,28 @@ and `--conf` work as in `preview`, and `--force` replaces existing files.
   detections means the detector ran and found nothing.
 - Boxes are in pixels of the upright photo (EXIF orientation applied).
 
+## Scoring detectors on a labeled split
+
+To compare detectors on the frozen test split, run `detect` on the split's sessions once per
+detector configuration, then score the output folders against the exported labels:
+
+```sh
+uv run python -m objhist_detection.detect --weights <best.pt> --session 2026-10-12-1643 --no-tiled
+uv run python -m objhist_evaluation.score_detections --dataset data/processed/counter-2026-10-12 \
+    --split test data/interim/detections/<detector version> [more folders...] \
+    --json-out data/interim/detections/scores-test.json
+```
+
+- For each folder it reports labeled objects found with the right class, found with the wrong
+  class, missed, and false boxes, per class, plus which classes were confused. An object
+  counts as found at IoU 0.5 or more; predictions are matched most confident first. The rule is
+  in `objhist_evaluation.detector_scoring`.
+- Every labeled photo of the split must have a frame in each folder; a photo that `detect` did
+  not process stops the scoring instead of counting as missed.
+- `--min-confidence` scores only detections at or above a threshold. It cannot go below the
+  threshold `detect` ran with, because weaker detections are not in the file.
+- Pick thresholds and settings on `--split val`. Score the test split only for final results.
+
 ## Training
 
 Train with the dataset's `data.yaml`, for example
