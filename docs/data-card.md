@@ -231,8 +231,8 @@ downscaled with Lanczos and scored against the scaled reviewed labels, correct o
 - **Sessions:** the photos arrived as one folder. They were split into six sessions wherever
   the shooting paused, which was every gap of at least 47 s (the median gap is 15 s). Each
   session folder holds byte-identical copies of its photos (SHA-256 checked) and its own
-  `changes.xlsx`. The original folder `2026-10-12-counter-test` is still in place and must not
-  be proposed again.
+  `changes.xlsx`. The original folder `2026-10-12-counter-test` was deleted on 2026-10-12, after
+  every photo and change-log row was confirmed to have an identical copy in the sessions.
 - **Splits** (`session_splits.csv`, frozen before review, SHA-256
   `21c114dabd1274e6e90fce1646bcda5747da6d840f0ec1fca83debbe88afccfd`):
 
@@ -282,8 +282,10 @@ downscaled with Lanczos and scored against the scaled reviewed labels, correct o
 **Test comparison (session `2026-10-12-1643`, 16 photos, 112 objects), scored once after
 training.** "Correct" means the right class with IoU ≥ 0.5 at confidence ≥ 0.25. Predictions
 are matched greedily, most confident first. A box over an object of another class counts as
-wrong class. The matching script is not in the repository yet. mAP comes from
-`yolo detect val ... split=test`.
+wrong class. These counts come from `objhist_evaluation.score_detections` (matching rule
+`detector-counts-v1`; commands in [data/README.md](../data/README.md#scoring-detectors-on-a-labeled-split)),
+which reproduces the first, one-off script exactly. The YOLOE row comes from its proposals
+file, which that command does not read. mAP comes from `yolo detect val ... split=test`.
 
 | Detector | Correct | Wrong class | Missed | False boxes | mAP50 | mAP50-95 |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -305,7 +307,10 @@ Per class, for the new model at 1280 px:
   settings were tuned on. With the new model, tiling adds 2 correct objects and removes 3
   misses, but it also adds 1 wrong class.
 - **Cutlery is the weak point:** fork, knife, and spoon score about 0.62 mAP50-95. The other
-  classes score at least 0.92.
+  classes score at least 0.92. At 1280 px, every one of the new model's mistakes is cutlery:
+  spoon read as fork 4 times, fork as spoon once, knife as spoon once, 9 cutlery objects
+  missed (fork 3, knife 4, spoon 2), and 9 false cutlery boxes. All 32 cups, 16 glasses, and
+  16 plates were found.
 - **What this number means:** every session shows the same counter and the same seven objects
   in the same 33 minutes, so the test measures this setup, not other kitchens, lighting, or
   objects. The test labels started as YOLOE boxes, which may favor YOLOE's box placement. This
@@ -330,9 +335,9 @@ zone.
 - `2026-10-12-counter-test` (test batch): 2 photos, 43 s apart; handheld phone (Galaxy S25
   Ultra) from standing height, so the framing shifts between photos; 4000x2252 JPEG; capture
   times from EXIF `DateTimeOriginal` with offset -04:00; change log `changes.xlsx`. Sessions without reliable capture times cannot support time-based answers.
-  Those two photos were later replaced. The folder now holds the 100 photos below, and the
-  pipeline-test proposals and reviews for the two photos are kept in
-  `data/interim/counter-labels/`.
+  Those two photos were later replaced by the 100 photos below, which were copied into six
+  sessions; the folder was then deleted. The pipeline-test proposals and reviews for the two
+  photos are kept in `data/interim/counter-labels/`.
 - `2026-10-12-1618`, `-1624`, `-1628`, `-1635`, `-1643`, `-1647` (first labeled batch): 100
   photos in 6 sessions of 16, 9, 18, 28, 16, and 13 photos, about 15 s apart (median); same
   phone, handheld; 4000x2252 JPEG; capture times from EXIF `DateTimeOriginal`,
