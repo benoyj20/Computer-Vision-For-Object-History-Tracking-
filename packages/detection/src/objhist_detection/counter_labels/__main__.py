@@ -52,6 +52,7 @@ def run_propose(
     work_dir: Path,
     session_ids: list[str] | None,
     model_path: str,
+    detector_path: Path | None,
     device: str,
     force: bool,
 ) -> None:
@@ -61,11 +62,22 @@ def run_propose(
     import torch
     import ultralytics
 
-    from objhist_detection import yoloe_prompts
     from objhist_detection.annotation import file_sha256
-    from objhist_detection.counter_labels import yoloe_boxes
 
     session_photos = find_session_photos(sequences_dir, session_ids)
+    if detector_path is not None:
+        if not detector_path.is_file():
+            raise FileNotFoundError(f"{detector_path} not found")
+        frozen = splits.read_splits(work_dir / SPLITS_FILENAME)
+        held_out = sorted(
+            {photo.session_id for photo in session_photos}
+            & {session for session, split in frozen.items() if split in splits.HELD_OUT_SPLITS}
+        )
+        if held_out:
+            raise ValueError(
+                f"{', '.join(held_out)} are validation or test sessions; their proposals must "
+                "come from YOLOE, not the detector they will measure (drop --detector)"
+            )
     photos: dict[str, proposals.PhotoRecord] = {}
     boxes: dict[str, list[proposals.ProposedBox]] = {}
     if (work_dir / PHOTOS_FILENAME).is_file():
@@ -84,8 +96,38 @@ def run_propose(
         print(f"all {len(session_photos)} photos already have proposals")
         return
 
-    model = yoloe_prompts.load_prompted_model(model_path)
-    for record, photo_boxes in yoloe_boxes.propose_photo_boxes(model, pending, device):
+    if detector_path is None:
+        from objhist_detection import yoloe_prompts
+        from objhist_detection.counter_labels import yoloe_boxes
+
+        yoloe = yoloe_prompts.load_prompted_model(model_path)
+        find_candidates = yoloe_boxes.yoloe_candidate_finder(yoloe, device)
+        proposer_record: dict[str, object] = {
+            "proposer": proposals.YOLOE_PROPOSER,
+            "model": model_path,
+            "model_sha256": file_sha256(Path(yoloe.ckpt_path)),
+            "text_prompts": yoloe_prompts.YOLOE_TEXT_PROMPTS,
+            "inference_image_size_px": yoloe_boxes.INFERENCE_IMAGE_SIZE_PX,
+            "agnostic_nms": yoloe_boxes.AGNOSTIC_NMS,
+        }
+    else:
+        from ultralytics import YOLO
+
+        from objhist_detection.counter_labels import detector_boxes
+        from objhist_detection.ultralytics_predictor import ultralytics_predictor
+
+        detector = YOLO(str(detector_path))
+        detector_boxes.check_class_names(detector.names)
+        find_candidates = detector_boxes.trained_detector_candidate_finder(
+            ultralytics_predictor(detector, device)
+        )
+        proposer_record = {
+            "proposer": proposals.TRAINED_DETECTOR_PROPOSER,
+            "model": str(detector_path),
+            "model_sha256": file_sha256(detector_path),
+            "inference": detector_boxes.PROPOSAL_INFERENCE.as_record(),
+        }
+    for record, photo_boxes in proposals.propose_photos(find_candidates, pending):
         photos[record.key] = record
         boxes[record.key] = photo_boxes
         classes = Counter(proposed.class_name for proposed in photo_boxes)
@@ -100,11 +142,7 @@ def run_propose(
         {
             "created_at": datetime.now(UTC).isoformat(),
             "photos": [photo.key for photo in pending],
-            "model": model_path,
-            "model_sha256": file_sha256(Path(model.ckpt_path)),
-            "text_prompts": yoloe_prompts.YOLOE_TEXT_PROMPTS,
-            "inference_image_size_px": yoloe_boxes.INFERENCE_IMAGE_SIZE_PX,
-            "agnostic_nms": yoloe_boxes.AGNOSTIC_NMS,
+            **proposer_record,
             "proposal_confidence_floor": proposals.PROPOSAL_CONFIDENCE_FLOOR,
             "ultralytics_version": ultralytics.__version__,
             "torch_version": torch.__version__,
@@ -145,12 +183,27 @@ def run_review_page(sequences_dir: Path, work_dir: Path) -> None:
     print(f"open {page_path.resolve().as_uri()}")
 
 
+def _sessions_with_trained_proposals(
+    work_dir: Path, photos: dict[str, proposals.PhotoRecord]
+) -> set[str]:
+    metadata_path = work_dir / PROPOSALS_METADATA_FILENAME
+    if not metadata_path.is_file():
+        return set()
+    runs = json.loads(metadata_path.read_text("utf-8"))["runs"]
+    return {
+        photos[key].session_id
+        for key, proposer in proposals.proposer_by_photo(runs).items()
+        if proposer == proposals.TRAINED_DETECTOR_PROPOSER and key in photos
+    }
+
+
 def run_split(work_dir: Path, overrides: dict[str, str]) -> None:
     photos, _ = _read_proposals(work_dir)
     photos_per_session = Counter(photo.session_id for photo in photos.values())
     splits_path = work_dir / SPLITS_FILENAME
     existing = splits.read_splits(splits_path)
     assignments = splits.assign_new_sessions(existing, photos_per_session, overrides)
+    splits.check_held_out_proposals(assignments, _sessions_with_trained_proposals(work_dir, photos))
     splits.write_splits(splits_path, assignments)
     for session_id, split in sorted(assignments.items()):
         state = "frozen" if session_id in existing else "new"
@@ -204,7 +257,14 @@ def build_parser() -> argparse.ArgumentParser:
     propose_step.add_argument(
         "--session", action="append", dest="sessions", help="only this session (repeatable)"
     )
-    propose_step.add_argument("--model", default="yoloe-26s-seg.pt")
+    proposer = propose_step.add_mutually_exclusive_group()
+    proposer.add_argument("--model", default="yoloe-26s-seg.pt", help="YOLOE weights (default)")
+    proposer.add_argument(
+        "--detector",
+        type=Path,
+        help="propose with a detector trained on this project's labels instead of YOLOE; "
+        "training sessions only",
+    )
     propose_step.add_argument("--device", default="0", help="CUDA device index or 'cpu'")
     propose_step.add_argument(
         "--force", action="store_true", help="propose already-proposed photos again"
@@ -241,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.work_dir,
                     args.sessions,
                     args.model,
+                    args.detector,
                     args.device,
                     args.force,
                 )
