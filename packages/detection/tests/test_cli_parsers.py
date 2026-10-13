@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from objhist_detection import detect
@@ -20,6 +22,9 @@ def test_counter_cli_parses_steps_and_split_assignments() -> None:
     assert args.assign == [("2026-10-12-a", "test")]
     for step in ("propose", "review-page", "export"):
         assert parser.parse_args([step]).step == step
+    assert parser.parse_args(["propose", "--detector", "best.pt"]).detector == Path("best.pt")
+    with pytest.raises(SystemExit):
+        parser.parse_args(["propose", "--detector", "best.pt", "--model", "yoloe-26s-seg.pt"])
     with pytest.raises(SystemExit):
         parser.parse_args(["split", "--assign", "no-equals-sign"])
 

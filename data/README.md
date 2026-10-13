@@ -109,6 +109,15 @@ uv run python -m objhist_detection.counter_labels export
 - `propose` reads every session under `data/raw/sequences/` and only processes photos added
   since the last run (`--session <id>` limits it; `--force` re-proposes). It writes
   `photos.csv`, `proposals.csv`, and `proposals.meta.json` (model hash, settings, versions).
+- For **training** sessions, `propose --detector runs/detect/<run>/weights/<weights>.pt`
+  proposes boxes with a detector trained on this project's labels instead of YOLOE. It runs a
+  single pass at 1280 px with duplicates merged and a 0.15 floor, so review is mostly Keep: on
+  test session `2026-10-12-1643` its proposals matched the seven-object list in 10 of 16 photos,
+  against none for YOLOE. Validation and test labels must not start from the detector they
+  measure, so `propose --detector` refuses sessions already assigned to val or test, and `split`
+  refuses to hold out a session whose current proposals came from a trained detector. Assign
+  such sessions with `split --assign <session>=train`, or re-propose them with YOLOE
+  (`--force`). The detector's class list must match the project's.
 - On the review page, every proposed box needs Keep or Reject with the right class, and every
   missed object needs a drawn box. A box encloses the visible part of its object: parts seen
   through clear or tinted glass count as visible, and parts hidden behind or inside something
