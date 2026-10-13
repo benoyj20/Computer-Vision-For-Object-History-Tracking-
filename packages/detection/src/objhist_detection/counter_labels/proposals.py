@@ -6,11 +6,14 @@ reviewer confirms or corrects each box's class, rejects false boxes, and draws m
 """
 
 import csv
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from objhist_detection.annotation import CLASS_NAMES, PixelBox
+from PIL import Image
+
+from objhist_detection.annotation import CLASS_NAMES, PixelBox, file_sha256, load_upright_rgb
+from objhist_detection.counter_labels.sessions import SessionPhoto
 
 PROPOSAL_CONFIDENCE_FLOOR = 0.15
 """Boxes below this are dropped before review. On the first counter photos, YOLOE's boxes
@@ -18,6 +21,11 @@ below it were background or duplicates; a missed object can still be drawn by th
 
 LOW_CONFIDENCE_HINT = 0.4
 """The review page marks boxes below this confidence so reviewers look at them closely."""
+
+YOLOE_PROPOSER = "yoloe"
+TRAINED_DETECTOR_PROPOSER = "trained-detector"
+"""A detector trained on this project's labels. Its proposals make reviewing training photos
+faster, but validation and test labels must not start from the model they will measure."""
 
 
 @dataclass(frozen=True)
@@ -49,6 +57,44 @@ class Candidate:
     class_name: str
     confidence: float
     box: PixelBox
+
+
+CandidateFinder = Callable[[Image.Image], list[Candidate]]
+"""Finds candidate boxes in an upright photo, in that photo's pixels, with project classes."""
+
+
+def propose_photos(
+    find_candidates: CandidateFinder, photos: Sequence[SessionPhoto]
+) -> Iterator[tuple[PhotoRecord, list[ProposedBox]]]:
+    """Yield each photo's record and its proposals, one photo at a time to bound GPU memory."""
+    for photo in photos:
+        upright, orientation = load_upright_rgb(photo.path)
+        record = PhotoRecord(
+            key=photo.key,
+            session_id=photo.session_id,
+            filename=photo.filename,
+            width_px=upright.width,
+            height_px=upright.height,
+            exif_orientation=orientation,
+            sha256=file_sha256(photo.path),
+        )
+        yield record, proposals_for_photo(photo.key, find_candidates(upright))
+
+
+def proposer_by_photo(runs: Sequence[Mapping[str, object]]) -> dict[str, str]:
+    """Which proposer made each photo's current proposals, from `proposals.meta.json` runs.
+
+    Later runs replace earlier ones. Runs recorded before the field existed used YOLOE.
+    """
+    proposers: dict[str, str] = {}
+    for run in runs:
+        proposer = str(run.get("proposer", YOLOE_PROPOSER))
+        photo_keys = run.get("photos")
+        if not isinstance(photo_keys, list):
+            raise ValueError(f"proposal run record has no photo list: {dict(run)}")  # noqa: TRY004  # bad file content, reported like other metadata errors
+        for key in photo_keys:
+            proposers[str(key)] = proposer
+    return proposers
 
 
 def proposals_for_photo(key: str, candidates: Sequence[Candidate]) -> list[ProposedBox]:
