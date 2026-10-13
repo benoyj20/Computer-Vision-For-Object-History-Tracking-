@@ -9,11 +9,11 @@ checking items off; keep manual checks distinct from automated tests.
 
 ## Current working flow
 
-Detector side only. A YOLO26n detector trained on Kaggle close-ups runs with tiled inference on
-counter photos, and `objhist_detection.detect` writes its output per session as
-`SessionDetections` files for the tracker. No counter sessions are labeled yet, so the detector
-has no in-domain evaluation. Tracking, history, the assistant, and evaluation are not
-implemented.
+Detector side only. A YOLO26n detector fine-tuned on Kaggle close-ups and 75 labeled counter
+photos finds 97 of 112 objects on a held-out counter session at 1280 px. All counter sessions
+show the same counter and the same objects. `objhist_detection.detect` writes detector output
+per session as `SessionDetections` files for the tracker. Tracking, history, the assistant, and
+evaluation are not implemented.
 
 ## Completed: repository setup (2026-10-08, branch `chore/project-setup`)
 
@@ -63,8 +63,11 @@ implemented.
   YOLOE proposes every box at 1280 px, a local review page keeps, relabels, rejects, or draws
   boxes, and an export writes session-split YOLO data. Checked on the two test photos; tests in
   `packages/detection/tests/test_counter_*.py`.
-- [ ] Label boxes on the provided images (needs the counter sessions).
-- [ ] Freeze splits grouped by capture session.
+- [x] Label boxes on the provided images (2026-10-12): 100 photos in 6 sessions, all reviewed
+  by Benoy and checked against the known object list; dataset `counter-2026-10-12` in the
+  [data card](data-card.md#dataset-counter-2026-10-12).
+- [x] Freeze splits grouped by capture session (2026-10-12): train 75, val 9, test 16 photos
+  (`session_splits.csv`).
 
 **Exit test:** a versioned dataset with a documented class list, split lists, and hashes that
 trains with `make train`.
@@ -74,7 +77,10 @@ trains with `make train`.
 - [ ] Zero-shot COCO-pretrained YOLO26 baseline on the held-out split.
 - [ ] Fine-tune YOLO26; record the command, seed, hardware, and metrics for each run.
   First run on `kaggle-kitchenware-v1` (2026-10-09): test mAP50 0.984, mAP50-95 0.961 on
-  single-object close-ups; details in the data card. Still needs in-domain counter data.
+  single-object close-ups; details in the data card.
+  Second run `yolo26n-counter-kitchen-1280-v2` (2026-10-12): Kaggle + counter data at 1280 px.
+  On the 16 counter test photos it scores mAP50 0.885 and mAP50-95 0.782 (old model: 0.334 and
+  0.295), finding 97 of 112 objects (old model: 22).
 - [ ] Compare model sizes (n/s) for accuracy versus speed on the 8 GB GPU.
 - [x] Tiled inference for wide counter photos and a `preview` command (2026-10-12, branch
   `feature/tiled-inference`): on the two test photos the Kaggle model went from 2 of 10 objects
