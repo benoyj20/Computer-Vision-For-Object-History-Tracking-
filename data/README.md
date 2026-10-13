@@ -132,7 +132,10 @@ It writes annotated copies and `detections.json` (weights hash, settings, every 
 plus evenly spaced, overlapping square tiles, merged into one set of detections, so small
 cutlery is not shrunk out of sight. Tiles are 0.32 of the photo's long side (1280 px on a
 4000x2252 photo, 614 px on 1920x1080; 12 tiles either way), so any resolution works.
-`--no-tiled` runs a single pass at `--inference-px` instead.
+`--no-tiled` runs a single pass at `--inference-px` instead. A single pass merges boxes that
+overlap as one object, as tiled inference does, unless `--no-merge-duplicates` is given.
+For `yolo26n-counter-kitchen-1280-v2`, which was trained at 1280 px, a merged single pass
+matched tiled inference on the validation photos and is much faster.
 
 ## Detections for the tracker
 
