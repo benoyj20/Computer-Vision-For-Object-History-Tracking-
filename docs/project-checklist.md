@@ -160,4 +160,7 @@ placement-interval coverage, and assistant accuracy, reproducible from recorded 
 - [x] `main` branch protection enabled (2026-10-08): PR with 1 approval, stale approvals
   dismissed, `python` and `javascript` checks required on an up-to-date branch, conversations resolved, no force
   pushes or deletion. Admin bypass stays available until Justin is a collaborator.
+- [x] Coding agents may view Benoy's counter photos (downscaled, metadata removed, no people)
+  for label review and error analysis (2026-10-12, Benoy's decision for his own photos; see
+  AGENTS.md). Justin to be told; his images still need both contributors' agreement.
 - [ ] Add Justin as a repository collaborator and to `.github/CODEOWNERS`.

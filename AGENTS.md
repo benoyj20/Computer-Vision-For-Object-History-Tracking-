@@ -160,6 +160,11 @@ in the directory you are editing, including `apps/web/AGENTS.md` for the web app
   never as a more precise time than the snapshots support.
 - Keep API keys in `.env`. Do not send kitchen images or personal information to
   an external model unless both contributors have agreed and it is documented.
+  Exception, granted by Benoy on 2026-10-12 for the photos he provides: coding agents
+  (Claude Code) may view Benoy's counter photos for label review and detector error
+  analysis. Show only downscaled copies with metadata (EXIF, including GPS) removed, never
+  photos that show people, and record in the data card which photos were viewed and why.
+  Images from Justin still need both contributors' agreement.
 - Unit tests use recorded or stubbed model responses. Record model name, prompt
   version, and temperature with any assistant evaluation; temperature zero does
   not guarantee reproducibility.
