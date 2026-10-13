@@ -81,7 +81,12 @@ trains with `make train`.
   Second run `yolo26n-counter-kitchen-1280-v2` (2026-10-12): Kaggle + counter data at 1280 px.
   On the 16 counter test photos it scores mAP50 0.885 and mAP50-95 0.782 (old model: 0.334 and
   0.295), finding 97 of 112 objects (old model: 22).
-- [ ] Compare model sizes (n/s) for accuracy versus speed on the 8 GB GPU.
+- [x] Compare model sizes (n/s) for accuracy versus speed on the 8 GB GPU (2026-10-13):
+  YOLO26s at 1280 px (batch 4, 1.94 h) found no more cutlery than the nano on 29 validation
+  photos (69 vs 68 of 87) and added glass-as-cup errors; the nano was kept. See the data card.
+- [x] Final detector `yolo26n-counter-final-1280-e15` (2026-10-13): trained on 129 counter
+  photos including both night sessions; on held-out session 1643 it scores 98 of 112 objects
+  (cutlery 34 of 48), mAP50-95 0.796, against 95, 31, and 0.782 for the previous model.
 - [x] Tiled inference for wide counter photos and a `preview` command (2026-10-12, branch
   `feature/tiled-inference`): on the two test photos the Kaggle model went from 2 of 10 objects
   (640 px) to 9 of 10 correct, with 1 wrong class and 2 false boxes. Settings still need
