@@ -449,6 +449,33 @@ Cutlery mAP50-95: fork 0.618 → 0.585, knife 0.613 → 0.645, spoon 0.632 → 0
   that both night sessions are in training, no held-out night photos remain to measure night
   performance.
 
+### Training run `yolo26s-counter-final-1280-e15` (2026-10-13)
+
+- **Setup:** same data as the final nano (`counter-final-2026-10-13`, 129 counter photos
+  including both night sessions). It starts from the official `yolo26s.pt` and trains at 1280
+  px for 15 epochs, batch 4, seed 0, taking 1.10 h. `last.pt` SHA-256
+  `f9e10aa9ec4d4e29a13f4e4a432f58cb03133d8f3ed100d4c2a0a1c61d3c7e51`.
+- **Epoch count:** Benoy's rule was 15 epochs, more if the score was still rising. On the
+  monitored validation photos (also trained on) mAP50-95 went 0.954, 0.953, 0.952 over epochs
+  13–15, so it stopped at 15.
+- **Held-out test (session 1643, 16 photos, 48 cutlery pieces):**
+
+| Model | Mode | Correct (of 112) | Wrong class | Missed | False | Cutlery correct (of 48) | mAP50-95 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `yolo26n-counter-final-1280-e15` | single pass, merged | 98 | 7 | 7 | 3 | 34 (71%) | 0.796 |
+| `yolo26s-counter-final-1280-e15` | single pass, merged | **104** | **1** | 7 | 5 | **40 (83%)** | **0.830** |
+| `yolo26s-counter-final-1280-e15` | tiled | 105 | 1 | 6 | 7 | 41 (85%) | – |
+
+Cutlery mAP50-95 for YOLO26s: fork 0.658, knife 0.697, spoon 0.778 (nano: 0.585, 0.645,
+0.705).
+
+- **What changed:** the fork/spoon mix-ups nearly disappeared, from 7 wrong-class objects to 1.
+  On the smaller training set (75 photos) YOLO26s was no better than the nano on validation;
+  with 129 photos it is clearly better. The larger model needed the extra data.
+- **Caveat:** no held-out validation photos remained, so this test session both measured the
+  two models and chose between them. That makes 83% slightly optimistic. Confirm it on a new
+  test session before relying on it, together with the tiling choice. 16 photos and one seed.
+
 ## Known gaps
 
 - The motivating queries mention milk and dish soap, which no candidate dataset labels. The

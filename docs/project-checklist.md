@@ -105,6 +105,9 @@ trains with `make train`.
   `python -m objhist_evaluation.score_detections` counts correct, wrong-class, missed, and false
   boxes per class from `detect` output; it reproduced the recorded test comparison exactly.
   Tests in `packages/evaluation/tests/`.
+- [x] YOLO26s on the full data (2026-10-13): on held-out session 1643 it finds 40 of 48
+  cutlery pieces (nano 34) and 104 of 112 objects, mAP50-95 0.830. Chosen on that same session,
+  so it needs confirming on a new test session.
 - [ ] Choose and record the confidence threshold on the validation split.
 
 **Exit test:** mAP50 and mAP50-95 on the frozen test split, compared with the zero-shot baseline.
