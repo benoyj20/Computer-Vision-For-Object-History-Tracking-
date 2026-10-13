@@ -772,10 +772,14 @@ version = "0.1.0"
 source = { editable = "packages/evaluation" }
 dependencies = [
     { name = "objhist-core" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "objhist-core", editable = "packages/core" }]
+requires-dist = [
+    { name = "objhist-core", editable = "packages/core" },
+    { name = "pyyaml", specifier = ">=6,<7" },
+]
 
 [[package]]
 name = "objhist-tracking"

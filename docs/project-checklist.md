@@ -96,6 +96,10 @@ trains with `make train`.
   session: 2 frames, 12 detections, the same as `preview`. Tests in
   `packages/detection/tests/test_detect.py` and `test_capture_times.py`.
 - [ ] Justin agrees to the detector output file format (ADR 0005).
+- [x] Rerunnable detector scoring (2026-10-12, branch `feature/detector-scoring`):
+  `python -m objhist_evaluation.score_detections` counts correct, wrong-class, missed, and false
+  boxes per class from `detect` output; it reproduced the recorded test comparison exactly.
+  Tests in `packages/evaluation/tests/`.
 - [ ] Choose and record the confidence threshold on the validation split.
 
 **Exit test:** mAP50 and mAP50-95 on the frozen test split, compared with the zero-shot baseline.

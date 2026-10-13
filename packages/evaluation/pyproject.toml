@@ -3,7 +3,10 @@ name = "objhist-evaluation"
 version = "0.1.0"
 description = "Scripted kitchen scenarios and precision/recall evaluation of history events."
 requires-python = ">=3.12,<3.14"
-dependencies = ["objhist-core"]
+dependencies = [
+    "objhist-core",
+    "pyyaml>=6,<7",
+]
 
 [build-system]
 requires = ["hatchling"]
