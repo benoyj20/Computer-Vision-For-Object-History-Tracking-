@@ -110,7 +110,9 @@ uv run python -m objhist_detection.counter_labels export
   since the last run (`--session <id>` limits it; `--force` re-proposes). It writes
   `photos.csv`, `proposals.csv`, and `proposals.meta.json` (model hash, settings, versions).
 - On the review page, every proposed box needs Keep or Reject with the right class, and every
-  missed object needs a drawn box. Only photos marked done are exported. Re-run `review-page`
+  missed object needs a drawn box. A box encloses the visible part of its object: parts seen
+  through clear or tinted glass count as visible, and parts hidden behind or inside something
+  opaque (a ceramic mug, under the plate) are left out. Only photos marked done are exported. Re-run `review-page`
   after saving `reviews.json` to continue with those reviews loaded.
 - `split` assigns new sessions to train, val, or test by photo count (70/15/15) and never moves
   a session once assigned; `--assign <session>=test` chooses a split for a new session. The
