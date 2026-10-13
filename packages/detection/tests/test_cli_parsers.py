@@ -33,4 +33,9 @@ def test_detect_cli_takes_repeated_sessions_and_inference_options() -> None:
 
     assert args.sessions == ["a", "b"]
     assert (args.no_tiled, args.conf, args.inference_px) == (True, 0.4, 1280)
+    assert args.merge_duplicates is True
+    assert (
+        parser.parse_args(["--weights", "best.pt", "--no-merge-duplicates"]).merge_duplicates
+        is False
+    )
     assert parser.parse_args(["--weights", "best.pt"]).sessions is None

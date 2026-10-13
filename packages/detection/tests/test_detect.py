@@ -32,7 +32,7 @@ def make_session_dir(tmp_path: Path, manifest_rows: list[tuple[str, str]]) -> Pa
     return session_dir.parent
 
 
-def detector_run(version: str = "yolo26n-kitchen-0123456789ab-single1280") -> DetectorRun:
+def detector_run(version: str = "yolo26n-kitchen-0123456789ab-single1280-merged") -> DetectorRun:
     return DetectorRun(
         version=version,
         weights_sha256="0" * 64,
@@ -120,7 +120,7 @@ def test_detector_version_names_the_run_weights_and_mode(tmp_path: Path) -> None
     assert detect.detector_version(weights, sha, InferenceSettings()) == (
         f"yolo26n-kitchen-{sha[:12]}-tiled"
     )
-    assert detect.detector_version(loose, sha, SINGLE_PASS) == f"model-{sha[:12]}-single1280"
+    assert detect.detector_version(loose, sha, SINGLE_PASS) == f"model-{sha[:12]}-single1280-merged"
 
 
 def test_cli_refuses_to_replace_detections_before_loading_a_model(tmp_path: Path) -> None:
