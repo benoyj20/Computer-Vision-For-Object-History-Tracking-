@@ -295,6 +295,7 @@ file, which that command does not read. mAP comes from `yolo detect val ... spli
 | YOLOE-26s zero-shot, 1280 px (pre-review proposals) | 67 | 27 | 18 | 7 | – | – |
 | `yolo26n-counter-kitchen-1280-v2`, single pass 1280 px | 97 | 6 | 9 | 9 | 0.885 | 0.782 |
 | `yolo26n-counter-kitchen-1280-v2`, tiled | 99 | 7 | 6 | 8 | – | – |
+| `yolo26n-counter-kitchen-1280-v2`, single pass 1280 px, duplicates merged | 95 | 6 | 11 | 6 | – | – |
 
 Per class, for the new model at 1280 px:
 
@@ -335,6 +336,17 @@ were not viewed. Causes:
   "box what is visible, including through clear glass".
 - **Backlit spoon in the glass:** read as knife (0.47), with only its bright handle visible.
 - No false boxes on the wall switches or the stove grates.
+
+**Merging duplicate single-pass boxes (2026-10-12).** Single-pass output now goes through the
+tiled merge rule by default (`merge_duplicates`, thresholds 0.5 same-class IoU, 0.7
+containment, 0.6 cross-class IoU, all unchanged). The default was chosen on the validation
+session: false boxes fell from 8 to 3 there, with 58 objects correct either way, and merged
+single pass matched tiled inference (4 false boxes) at a fraction of the cost. Scored once on
+the test session afterwards, it gave 95 correct, 6 wrong class, 11 missed, and 6 false boxes,
+against 97 / 6 / 9 / 9 without merging. That is 3 fewer false boxes but 2 lost objects, a knife
+and a spoon, most likely cutlery lying close enough to another piece to be merged into it. The
+default was not changed on the basis of the test result. Revisit it, and the cross-class
+threshold, on a larger validation set. `--no-merge-duplicates` keeps the old behavior.
 
 ## Known gaps
 
