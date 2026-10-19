@@ -127,8 +127,9 @@ uv run python -m objhist_detection.counter_labels export
   through clear or tinted glass count as visible, and parts hidden behind or inside something
   opaque (a ceramic mug, under the plate) are left out. Only photos marked done are exported. Re-run `review-page`
   after saving `reviews.json` to continue with those reviews loaded.
-- **Adjust** on a box (proposed or drawn) zooms in and shows handles: drag them, or type the edges in
-  pixels, to fit the box tightly. Tight boxes matter for thin cutlery and for mAP50-95. An adjusted
+- To fit a box tightly, point at its outline on the photo (the pointer becomes a resize arrow) and
+  drag the edge or corner, or press **Type edges** to enter them in pixels. This works on kept,
+  undecided, and drawn boxes at any zoom, and keeps a resized proposal. Tight boxes matter for thin cutlery and for mAP50-95. An adjusted
   proposal is saved with `adjusted: true`; any other change to a proposed box is rejected when
   `reviews.json` is read, so a slip cannot reach the dataset unnoticed.
 - `split` assigns new sessions to train, val, or test by photo count (70/15/15) and never moves
