@@ -513,11 +513,10 @@ zone.
   (`Amrutha Kitchen Images-20261019T032652Z-1-001.zip`). Amrutha agreed to their use for
   training, label review, and error analysis by coding agents (reported by Benoy,
   2026-10-18). The photos carry no EXIF capture time, camera model, or GPS.
-  - **Capture times:** by Benoy's decision, the `-1140` and `-1155` manifests use the zip's
-    file times with offset -04:00. These times are approximate: they are whole-second file times,
-    not the camera clock. `-1055` has no manifest because 4 of its zip times are out of camera
-    order (IMG_6602–6610), and training does not need it. Do not use these sessions to evaluate
-    placement times.
+  - **Capture times:** the manifests use the zip's file times with offset -04:00, which Benoy
+    checked and confirmed as the real capture times (2026-10-18). They are whole seconds. In
+    `-1055`, the times of the 11 photos IMG_6600–6610 do not follow their file numbers,
+    so its manifest lists photos in time order.
   - **Splits** (by Claude, at Benoy's request), cut at a 16-minute pause in the shoot:
     `-1055` = train (84 photos, 10:56–11:24, proposed by `yolo26s-counter-final-1280-e15`);
     `-1140` = test (48 photos, 11:40–11:54) and `-1155` = validation (23 photos,
