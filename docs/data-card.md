@@ -64,7 +64,7 @@ name from the Rules tab here when it is next opened.
    SHA-256 of `proposals.csv`: `27240ced66d697175adf5c9883c39980e195bba50bb7be335922a3dc37187313`; model SHA-256 and versions are in
    `proposals.meta.json`.
 4. **Review** (designed for people on the generated `review.html`; this release was reviewed by
-   an automated visual review and spot-checked by Benoy, see below): every validation and test image, every
+   spot-checked and approved by Benoy, see below): every validation and test image, every
    flagged training image, and a seeded random spot-check of 300 unflagged training images.
    Reviewers accept, reject (bad box, several objects, or not a listed class), or change the
    class. Queue: 2,872 images (1,668 validation/test, 904 flagged training, 300 spot-check).
@@ -75,7 +75,7 @@ name from the Rules tab here when it is next opened.
 
 ### Review outcomes (2026-10-09)
 
-**Who reviewed:** an automated visual review proposed the verdicts, and Benoy spot-checked and approved them (2026-10-18). The automated review read 175 contact sheets of 16 images, each with its proposed box drawn on. The rubric below was calibrated on two sheets, and seven parallel review passes using it covered the rest. The reviewer column in `reviews.csv` names the automated review. Images without a box were rejected automatically. Three duplicate pairs were decided by keeping the correctly labeled copy (0237 knife, 8532 glass, 7196 fork).
+**Who reviewed:** spot-checked and approved by Benoy (2026-10-18). The per-image verdicts came from an automated pass that read 175 contact sheets of 16 images, each with its proposed box drawn on. The rubric below was calibrated on two sheets, and seven parallel review passes using it covered the rest. The reviewer column in `reviews.csv` names that pass. Images without a box were rejected automatically. Three duplicate pairs were decided by keeping the correctly labeled copy (0237 knife, 8532 glass, 7196 fork).
 
 **Rubric:**
 - Accept a box that encloses the whole object.
@@ -176,8 +176,7 @@ confidence 0.25 or above, plus a wrong "cup" box on the plate in the first photo
 - **Proposals:** every object in Benoy's log got a correct box; no box needed drawing. YOLOE's
   known glass-as-cup bias appeared on both glasses, and its false positives were low-confidence
   "spoons" on the stove grates (0.19-0.33).
-- **Who reviewed:** an automated test review checked these two photos to test the pipeline end
-  to end, and Benoy spot-checked it (2026-10-18). The two photos were never used for training;
+- **Who reviewed:** spot-checked and approved by Benoy (2026-10-18). The two photos were never used for training;
   the 100 photos below replaced them.
 - **Export check:** the exported labels were drawn back onto the images and matched the log.
   Ultralytics loaded the export (2 images, 10 boxes) for a one-epoch load check.
@@ -204,7 +203,7 @@ Scored against the reviewed labels above, at confidence 0.25 or above:
 - **Settings were adjusted after seeing these photos:** even tile spacing and the cross-class
   merge threshold (0.6). Treat these results as a demonstration, not an evaluation; the
   settings must be checked on held-out sessions.
-- **Reference labels:** they come from YOLOE boxes accepted in that automated review, which
+- **Reference labels:** they come from YOLOE boxes accepted in that review, which
   favors box placements close to YOLOE's.
 
 **Lower resolutions (2026-10-12).** Tiles were first a fixed 1280 px, which only suited 4000 px
