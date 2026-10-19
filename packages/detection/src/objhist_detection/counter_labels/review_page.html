@@ -56,11 +56,7 @@
       .stage { position: relative; background: #000; width: calc(var(--zoom, 1) * 100%); }
       .stage img { display: block; width: 100%; height: auto; }
       .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
-      .stage .handle { fill: #fff; stroke: #000; }
-      .stage .handle[data-handle="n"], .stage .handle[data-handle="s"] { cursor: ns-resize; }
-      .stage .handle[data-handle="e"], .stage .handle[data-handle="w"] { cursor: ew-resize; }
-      .stage .handle[data-handle="nw"], .stage .handle[data-handle="se"] { cursor: nwse-resize; }
-      .stage .handle[data-handle="ne"], .stage .handle[data-handle="sw"] { cursor: nesw-resize; }
+      .stage svg rect, .stage svg text { pointer-events: none; }
       .edges { display: flex; flex-wrap: wrap; gap: 6px 10px; }
       .edges input { width: 7.5em; }
       .stage text { font: 700 var(--label-size, 40px) system-ui, sans-serif; paint-order: stroke; stroke: #000; stroke-width: 6px; }
@@ -88,8 +84,10 @@
             not a listed class).</li>
           <li>Box what you can see. Parts seen through clear or tinted glass count as visible; parts hidden behind or
             inside something opaque (a ceramic mug, under the plate) are left out.</li>
-          <li>If a box is close but loose or cut off, press <strong>Adjust</strong>: drag the white handles on the photo, or
-            type the edges in pixels. It zooms in on the box; set Zoom back to 100% to see the whole photo.</li>
+          <li>If a box is close but loose or cut off, point at its outline on the photo: the pointer turns into a resize
+            arrow, and dragging moves that edge (or both edges at a corner). This keeps the box and marks it adjusted.
+            Rejected (dashed) boxes cannot be resized. <strong>Reset box</strong> undoes the change; <strong>Type
+            edges</strong> sets the edges in pixels. Zoom is optional, for thin cutlery.</li>
           <li>If an object has no good box, choose its class under "New box class" and drag a box around it on the photo.</li>
           <li>Leave objects that are not cup, fork, glass, knife, plate or spoon unboxed.</li>
           <li>When every object is boxed, press <strong>All objects boxed: mark done</strong>. Only done photos are exported.</li>
@@ -133,8 +131,11 @@
       const $ = (id) => document.getElementById(id);
       const message = $("message");
       let current = 0;
-      // The box being adjusted: { kind: "proposal", id } or { kind: "drawn", index }, or null.
+      // The box last resized or opened for typed edges: { kind: "proposal", id } or { kind: "drawn", index }, or null.
       let editing = null;
+      // Pointer distance from an outline (in screen px) that grabs it, and the cursor for each grabbed part.
+      const GRAB_PX = 8;
+      const RESIZE_CURSORS = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize" };
 
       // Draft state per photo: proposal decisions, drawn boxes, and the saved review when done.
       const drafts = new Map();
@@ -199,7 +200,7 @@
       }
       function setEditedBox(box) {
         if (editing.kind === "drawn") draft().drawn[editing.index].box = box;
-        else draft().decisions[editing.id].box = box;
+        else Object.assign(draft().decisions[editing.id], { box, keep: true });
       }
       function zoom() { return Number($("zoom").value); }
       function applyZoom() { $("stage").style.setProperty("--zoom", String(zoom())); }
@@ -210,13 +211,6 @@
         const centerY = ((box[1] + box[3]) / 2 / p.height) * viewport.scrollHeight;
         viewport.scrollLeft = centerX - viewport.clientWidth / 2;
         viewport.scrollTop = centerY - viewport.clientHeight / 2;
-      }
-      function startEditing(target) {
-        editing = target;
-        if (zoom() < 3) $("zoom").value = "3";
-        applyZoom();
-        render();
-        requestAnimationFrame(() => scrollToBox(editedBox()));
       }
 
       function stateOf(decision) {
@@ -238,12 +232,14 @@
         svg.setAttribute("aria-hidden", "true");
         svg.style.setProperty("--label-size", `${Math.round(p.width / 60)}px`);
         const stroke = Math.max(3, p.width / 400);
-        const addBox = (box, color, dashed, label, edited) => {
-          const [x1, y1, x2, y2] = box;
-          const rect = document.createElementNS(SVG_NS, "rect");
-          if (edited) rect.id = "edited-box";
+        const placeRect = (rect, [x1, y1, x2, y2]) => {
           rect.setAttribute("x", x1); rect.setAttribute("y", y1);
           rect.setAttribute("width", x2 - x1); rect.setAttribute("height", y2 - y1);
+        };
+        const addBox = (box, color, dashed, label, edited) => {
+          const [x1, y1] = box;
+          const rect = document.createElementNS(SVG_NS, "rect");
+          placeRect(rect, box);
           rect.setAttribute("fill", "none");
           rect.setAttribute("stroke", color);
           rect.setAttribute("stroke-width", edited ? stroke * 1.5 : stroke);
@@ -254,49 +250,46 @@
           text.setAttribute("fill", color);
           text.textContent = label;
           svg.append(rect, text);
+          return rect;
         };
         const css = getComputedStyle(document.documentElement);
         const color = (name) => css.getPropertyValue(name).trim();
+        // Boxes whose outline can be grabbed and dragged; rejected proposals are left alone.
+        const grabbable = [];
         p.proposals.forEach((proposal, index) => {
           const decision = d.decisions[proposal.id];
           const state = stateOf(decision);
           const mark = decision.box ? " (adjusted)" : "";
-          addBox(proposalBox(proposal, decision), color(`--${state}`), state === "reject", `${index + 1} ${decision.className}${mark}`, isEditing("proposal", proposal.id));
+          const box = proposalBox(proposal, decision);
+          const rect = addBox(box, color(`--${state}`), state === "reject", `${index + 1} ${decision.className}${mark}`, isEditing("proposal", proposal.id));
+          if (state !== "reject") grabbable.push({ target: { kind: "proposal", id: proposal.id }, box, rect });
         });
-        d.drawn.forEach((drawn, index) => addBox(drawn.box, color("--drawn"), false, `D${index + 1} ${drawn.className}`, isEditing("drawn", index)));
+        d.drawn.forEach((drawn, index) => {
+          const rect = addBox(drawn.box, color("--drawn"), false, `D${index + 1} ${drawn.className}`, isEditing("drawn", index));
+          grabbable.push({ target: { kind: "drawn", index }, box: drawn.box, rect });
+        });
 
-        // Handles on the box being adjusted; dragging one moves that edge or corner.
-        const handleSize = Math.max(p.width / (90 * zoom()), 6);
-        const handles = [];
-        const placeHandles = (box) => {
-          const [x1, y1, x2, y2] = box;
-          const spots = { nw: [x1, y1], n: [(x1 + x2) / 2, y1], ne: [x2, y1], e: [x2, (y1 + y2) / 2], se: [x2, y2], s: [(x1 + x2) / 2, y2], sw: [x1, y2], w: [x1, (y1 + y2) / 2] };
-          for (const handle of handles) {
-            const [cx, cy] = spots[handle.dataset.handle];
-            handle.setAttribute("x", cx - handleSize / 2); handle.setAttribute("y", cy - handleSize / 2);
+        // The outline part under the pointer: an edge ("n", "e", "s", "w") or a corner ("nw", ...),
+        // on the nearest grabbable box within GRAB_PX screen pixels.
+        const grabAt = ([x, y]) => {
+          const tolerance = (GRAB_PX * p.width) / svg.getBoundingClientRect().width;
+          let best = null;
+          for (const item of grabbable) {
+            const [x1, y1, x2, y2] = item.box;
+            if (x < x1 - tolerance || x > x2 + tolerance || y < y1 - tolerance || y > y2 + tolerance) continue;
+            const distances = { w: Math.abs(x - x1), e: Math.abs(x - x2), n: Math.abs(y - y1), s: Math.abs(y - y2) };
+            const vertical = distances.n <= distances.s ? "n" : "s";
+            const horizontal = distances.w <= distances.e ? "w" : "e";
+            const nearV = distances[vertical] <= tolerance;
+            const nearH = distances[horizontal] <= tolerance;
+            if (!nearV && !nearH) continue;
+            const handle = (nearV ? vertical : "") + (nearH ? horizontal : "");
+            const distance = Math.min(nearV ? distances[vertical] : Infinity, nearH ? distances[horizontal] : Infinity);
+            if (!best || distance < best.distance) best = { ...item, handle, distance };
           }
-          const rect = svg.querySelector("#edited-box");
-          rect.setAttribute("x", x1); rect.setAttribute("y", y1);
-          rect.setAttribute("width", x2 - x1); rect.setAttribute("height", y2 - y1);
+          return best;
         };
         let resizing = null;
-        if (editing) {
-          for (const name of ["nw", "n", "ne", "e", "se", "s", "sw", "w"]) {
-            const handle = document.createElementNS(SVG_NS, "rect");
-            handle.classList.add("handle");
-            handle.dataset.handle = name;
-            handle.setAttribute("width", handleSize); handle.setAttribute("height", handleSize);
-            handle.setAttribute("stroke-width", handleSize / 6);
-            handle.addEventListener("pointerdown", (event) => {
-              event.stopPropagation();
-              svg.setPointerCapture(event.pointerId);
-              resizing = { handle: name, box: [...editedBox()] };
-            });
-            handles.push(handle);
-            svg.append(handle);
-          }
-          placeHandles(editedBox());
-        }
         const resized = (box, handle, [x, y]) => {
           const [x1, y1, x2, y2] = box;
           const min = data.minDrawnSide;
@@ -318,8 +311,14 @@
           return [Math.min(Math.max(x, 0), p.width), Math.min(Math.max(y, 0), p.height)];
         };
         svg.addEventListener("pointerdown", (event) => {
-          start = toImage(event);
+          const point = toImage(event);
           svg.setPointerCapture(event.pointerId);
+          const grab = grabAt(point);
+          if (grab) {
+            resizing = { target: grab.target, handle: grab.handle, rect: grab.rect, original: grab.box, box: [...grab.box] };
+            return;
+          }
+          start = point;
           rubber = document.createElementNS(SVG_NS, "rect");
           rubber.setAttribute("fill", "none");
           rubber.setAttribute("stroke", color("--drawn"));
@@ -329,18 +328,26 @@
         svg.addEventListener("pointermove", (event) => {
           if (resizing) {
             resizing.box = resized(resizing.box, resizing.handle, toImage(event));
-            placeHandles(resizing.box);
+            placeRect(resizing.rect, resizing.box);
             return;
           }
-          if (!start) return;
+          if (!start) {
+            const grab = grabAt(toImage(event));
+            svg.style.cursor = grab ? RESIZE_CURSORS[grab.handle] : "";
+            return;
+          }
           const [x, y] = toImage(event);
           rubber.setAttribute("x", Math.min(start[0], x)); rubber.setAttribute("y", Math.min(start[1], y));
           rubber.setAttribute("width", Math.abs(x - start[0])); rubber.setAttribute("height", Math.abs(y - start[1]));
         });
         svg.addEventListener("pointerup", (event) => {
           if (resizing) {
-            setEditedBox(resizing.box);
+            const { target, box, original } = resizing;
             resizing = null;
+            editing = target;
+            // A click on an outline without dragging only selects the box.
+            if (box.every((value, index) => value === original[index])) return render();
+            setEditedBox(box);
             changed();
             return;
           }
@@ -396,28 +403,25 @@
         return wrap;
       }
 
+      // Boxes are resized by dragging their outline on the photo; these controls type the edges or undo.
       function editControls(kind, key, row, li, onReset) {
-        if (!isEditing(kind, key)) {
-          const adjust = document.createElement("button");
-          adjust.type = "button"; adjust.textContent = "Adjust";
-          adjust.addEventListener("click", () => {
-            if (kind === "proposal") draft().decisions[key].keep = true;
-            draft().review = null;
-            startEditing(kind === "proposal" ? { kind, id: key } : { kind, index: key });
-          });
-          row.append(adjust);
-          return;
-        }
-        const done = document.createElement("button");
-        done.type = "button"; done.textContent = "Done adjusting";
-        done.addEventListener("click", () => { editing = null; render(); });
-        row.append(done);
         if (onReset) {
           const reset = document.createElement("button");
           reset.type = "button"; reset.textContent = "Reset box";
-          reset.addEventListener("click", () => { onReset(); changed(); requestAnimationFrame(() => scrollToBox(editedBox())); });
+          reset.addEventListener("click", () => { onReset(); changed(); });
           row.append(reset);
         }
+        if (!isEditing(kind, key)) {
+          const type = document.createElement("button");
+          type.type = "button"; type.textContent = "Type edges";
+          type.addEventListener("click", () => { editing = kind === "proposal" ? { kind, id: key } : { kind, index: key }; render(); });
+          row.append(type);
+          return;
+        }
+        const done = document.createElement("button");
+        done.type = "button"; done.textContent = "Hide edges";
+        done.addEventListener("click", () => { editing = null; render(); });
+        row.append(done);
         li.append(edgeFields(editedBox()));
       }
 
