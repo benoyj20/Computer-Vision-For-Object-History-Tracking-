@@ -164,7 +164,9 @@ in the directory you are editing, including `apps/web/AGENTS.md` for the web app
   (Claude Code) may view Benoy's counter photos for label review and detector error
   analysis. Show only downscaled copies with metadata (EXIF, including GPS) removed, never
   photos that show people, and record in the data card which photos were viewed and why.
-  Images from Justin still need both contributors' agreement.
+  The same exception covers Amrutha's kitchen photos (sessions `2026-10-18-*`), which Benoy
+  provided on 2026-10-18 with Amrutha's agreement to their use for training, label review,
+  and error analysis. Images from Justin still need both contributors' agreement.
 - Unit tests use recorded or stubbed model responses. Record model name, prompt
   version, and temperature with any assistant evaluation; temperature zero does
   not guarantee reproducibility.

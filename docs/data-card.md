@@ -477,6 +477,8 @@ Cutlery mAP50-95 for YOLO26s: fork 0.658, knife 0.697, spoon 0.778 (nano: 0.585,
 - **Caveat:** no held-out validation photos remained, so this test session both measured the
   two models and chose between them. That makes 83% slightly optimistic. Confirm it on a new
   test session before relying on it, together with the tiling choice. 16 photos and one seed.
+  Session `2026-10-18-1140` (48 photos from a second kitchen) is that new test session; see
+  [Provided sequences](#provided-sequences).
 
 ## Known gaps
 
@@ -505,6 +507,25 @@ zone.
   phone, handheld; 4000x2252 JPEG; capture times from EXIF `DateTimeOriginal`,
   `SubsecTimeOriginal`, and `OffsetTimeOriginal` (-04:00). Change logs list the same seven
   objects as present in every photo.
+- `2026-10-18-1055`, `-1140`, `-1155` (second kitchen, 2026-10-18): 155 photos (IMG_6571–6726,
+  IMG_6628 absent) taken by Amrutha in her kitchen with an iPhone, 4032x3024 JPEG (3
+  portrait). Benoy delivered them as a Google Drive zip
+  (`Amrutha Kitchen Images-20261019T032652Z-1-001.zip`). Amrutha agreed to their use for
+  training, label review, and error analysis by coding agents (reported by Benoy,
+  2026-10-18). The photos carry no EXIF capture time, camera model, or GPS.
+  - **Capture times:** by Benoy's decision, the `-1140` and `-1155` manifests use the zip's
+    file times with offset -04:00. These times are approximate: they are whole-second file times,
+    not the camera clock. `-1055` has no manifest because 4 of its zip times are out of camera
+    order (IMG_6602–6610), and training does not need it. Do not use these sessions to evaluate
+    placement times.
+  - **Splits** (by Claude, at Benoy's request), cut at a 16-minute pause in the shoot:
+    `-1055` = train (84 photos, 10:56–11:24, proposed by `yolo26s-counter-final-1280-e15`);
+    `-1140` = test (48 photos, 11:40–11:54) and `-1155` = validation (23 photos,
+    11:56–12:02), both proposed by YOLOE.
+  - **Domain shift:** before any review, the YOLO26s detector found exactly the seven-object
+    list (2 cups, 1 each of fork, glass, knife, plate, spoon) in only 28 of the 155 photos.
+    Missed glasses were the most common difference. Claude did not view the photos for this
+    count.
 
 ## Class list
 

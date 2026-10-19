@@ -61,6 +61,10 @@ filename,captured_at
 If capture times are only in the images' EXIF data, deliver the images and the manifest can be
 generated from EXIF, provided the camera clock and time zone were correct.
 
+Exception: the `2026-10-18-1140` and `-1155` manifests come from the shared zip's file times
+(Benoy's decision, 2026-10-18), because the photos arrived without EXIF times. Those times are
+approximate, so use these sessions for detector work only, never to evaluate placement times.
+
 ## Kaggle kitchenware auto-labels
 
 The [Kaggle Kitchenware Classification](https://www.kaggle.com/competitions/kitchenware-classification/data)
