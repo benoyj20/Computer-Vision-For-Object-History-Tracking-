@@ -59,6 +59,8 @@
       .stage img { display: block; width: 100%; height: auto; }
       .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
       .stage svg rect, .stage svg text { pointer-events: none; }
+      /* While an outline is dragged, only that box and its label stay visible. */
+      .stage svg.resizing rect:not(.active), .stage svg.resizing text:not(.active) { visibility: hidden; }
       .edges { display: flex; flex-wrap: wrap; gap: 6px 10px; }
       .edges input { width: 7.5em; }
       .stage text { font: 700 var(--label-size, 40px) system-ui, sans-serif; paint-order: stroke; stroke: #000; stroke-width: 6px; }
@@ -352,6 +354,10 @@
           const grab = grabAt(point);
           if (grab) {
             resizing = { target: grab.target, handle: grab.handle, rect: grab.rect, original: grab.box, box: [...grab.box] };
+            // addBox appends each label right after its rect; the re-render on release restores the rest.
+            grab.rect.classList.add("active");
+            grab.rect.nextElementSibling.classList.add("active");
+            svg.classList.add("resizing");
             return;
           }
           start = point;
