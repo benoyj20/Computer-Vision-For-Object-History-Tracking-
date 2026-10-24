@@ -76,23 +76,24 @@
       .status { font-weight: 600; }
       .done { color: var(--keep); }
       .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-      /* With a mouse, compact controls so the whole box list fits beside the photo without scrolling;
-         touch screens keep 44 px targets. */
+      /* With a mouse, the box list is sized in em from --list-font, which fitList() sets to the largest size
+         that fits beside the photo without scrolling; touch screens keep 44 px targets. */
       @media (pointer: fine) {
         header { padding: 8px 16px; }
         details { margin: 2px 0 4px; }
         header input, header button, header select { min-height: 34px; padding: 3px 10px; }
         #progress, #message { margin-top: 2px; }
         main { padding: 10px 16px; gap: 12px; }
-        aside { padding: 8px; gap: 6px; }
-        aside input, aside select, aside button { min-height: 30px; padding: 2px 8px; font-size: 13px; }
-        aside label { font-size: 13px; }
-        aside .row { gap: 4px 6px; }
-        ol { gap: 4px; }
-        li { padding: 3px 6px; gap: 2px; border-left-width: 5px; }
-        .meta { font-size: 12px; }
+        aside { font-size: var(--list-font, 15px); padding: 0.55em; gap: 0.4em; }
+        aside h2 { font-size: 1.1em; }
+        aside input, aside select, aside button { min-height: 2.1em; padding: 0.15em 0.55em; font-size: 1em; }
+        aside label { font-size: 1em; }
+        aside .row { gap: 0.3em 0.4em; }
+        ol { gap: 0.3em; }
+        li { padding: 0.2em 0.4em; gap: 0.15em; border-left-width: 5px; }
+        .meta { font-size: 0.9em; }
         .row .meta { min-width: 7em; }
-        .edges { gap: 4px 6px; }
+        .edges { gap: 0.3em 0.4em; }
         .edges input { width: 5.5em; }
       }
     </style>
@@ -273,6 +274,18 @@
         $("stage").style.width = `${fitWidth * zoom()}px`;
       }
       function applyZoom() { fitStage(); }
+      // Largest list text size (19 px down to 12 px) at which the box list fits beside the photo unscrolled.
+      function fitList() {
+        const aside = document.querySelector("aside");
+        if (!window.matchMedia("(min-width: 1100px) and (pointer: fine)").matches) {
+          aside.style.removeProperty("--list-font");
+          return;
+        }
+        for (let size = 19; size >= 12; size -= 0.5) {
+          aside.style.setProperty("--list-font", `${size}px`);
+          if (aside.scrollHeight <= aside.clientHeight) return;
+        }
+      }
       function scrollToBox(box) {
         const viewport = $("viewport");
         const p = photo();
@@ -573,6 +586,7 @@
         renderStage();
         fitStage();
         renderList();
+        fitList();
         const undecided = undecidedCount(d);
         const status = $("photo-status");
         status.className = d.review ? "status done" : "status";
@@ -625,7 +639,7 @@
         save();
         if (draft().review !== before) render();
       });
-      window.addEventListener("resize", fitStage);
+      window.addEventListener("resize", () => { fitStage(); fitList(); });
       render();
     </script>
   </body>
