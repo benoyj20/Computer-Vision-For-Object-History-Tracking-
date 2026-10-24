@@ -125,7 +125,9 @@ uv run python -m objhist_detection.counter_labels export
 - On the review page, every proposed box needs Keep or Reject with the right class, and every
   missed object needs a drawn box. A box encloses the visible part of its object: parts seen
   through clear or tinted glass count as visible, and parts hidden behind or inside something
-  opaque (a ceramic mug, under the plate) are left out. Only photos marked done are exported. Re-run `review-page`
+  opaque (a ceramic mug, under the plate) are left out. A photo is marked done as soon as every
+  proposed box has Keep or Reject (**Keep all undecided** does it in one click), so draw missed
+  objects first; later changes keep it done. Only done photos are exported. Re-run `review-page`
   after saving `reviews.json` to continue with those reviews loaded.
 - To fit a box tightly, point at its outline on the photo (the pointer becomes a resize arrow) and
   drag the edge or corner, or press **Type edges** to enter them in pixels. This works on kept,

@@ -52,8 +52,10 @@
       #message { margin: 6px 0 0; color: var(--reject); }
       main { padding: 16px; display: grid; gap: 16px; }
       @media (min-width: 1100px) { main { grid-template-columns: minmax(0, 3fr) minmax(320px, 1fr); align-items: start; } }
-      .viewport { overflow: auto; border-radius: 8px; max-height: 85vh; background: #000; }
-      .stage { position: relative; background: #000; width: calc(var(--zoom, 1) * 100%); }
+      /* fitStage() sizes the viewport and stage so the whole photo fits on screen at 100% zoom. */
+      .viewport { overflow: auto; border-radius: 8px; background: #000; max-width: 100%; }
+      .stage { position: relative; background: #000; }
+      @media (min-width: 1100px) { aside { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; } }
       .stage img { display: block; width: 100%; height: auto; }
       .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
       .stage svg rect, .stage svg text { pointer-events: none; }
@@ -90,7 +92,9 @@
             edges</strong> sets the edges in pixels. Zoom is optional, for thin cutlery.</li>
           <li>If an object has no good box, choose its class under "New box class" and drag a box around it on the photo.</li>
           <li>Leave objects that are not cup, fork, glass, knife, plate or spoon unboxed.</li>
-          <li>When every object is boxed, press <strong>All objects boxed: mark done</strong>. Only done photos are exported.</li>
+          <li>A photo is marked done as soon as every proposed box has Keep or Reject (<strong>Keep all undecided</strong>
+            does that in one click), so draw missed objects first. Any later change keeps it done with the new boxes.
+            Only done photos are exported.</li>
           <li>Progress is saved in this browser. Download <code>reviews.json</code> into the work folder; regenerating
             the page loads it again.</li>
         </ul>
@@ -120,7 +124,6 @@
         </div>
         <ol id="box-list" aria-label="Boxes in this photo"></ol>
         <p class="status" id="photo-status"></p>
-        <button id="mark-done" type="button">All objects boxed: mark done</button>
       </aside>
     </main>
     <script type="application/json" id="review-data">__REVIEW_DATA__</script>
@@ -183,8 +186,30 @@
       function draft() { return drafts.get(photo().key); }
       function changed() {
         draft().review = null;
+        completeIfDecided();
         save();
         render();
+      }
+      // A photo is done once every proposal has Keep or Reject; its review is rebuilt after every change.
+      function completeIfDecided() {
+        const p = photo();
+        const d = draft();
+        if (d.review || undecidedCount(d) > 0) return;
+        const reviewer = $("reviewer").value.trim();
+        if (!reviewer) {
+          message.textContent = "Enter your name as reviewer; the photo is marked done once it is set.";
+          return;
+        }
+        message.textContent = "";
+        const objects = [];
+        const rejected = [];
+        for (const proposal of p.proposals) {
+          const decision = d.decisions[proposal.id];
+          if (decision.keep) objects.push({ class_name: decision.className, box: proposalBox(proposal, decision), source: "proposed", proposal_id: proposal.id, adjusted: Boolean(decision.box) });
+          else rejected.push(proposal.id);
+        }
+        for (const drawn of d.drawn) objects.push({ class_name: drawn.className, box: drawn.box, source: "drawn", proposal_id: null });
+        d.review = { key: p.key, reviewer, reviewed_at: new Date().toISOString(), objects, rejected_proposals: rejected };
       }
 
       for (const name of data.classes) $("new-class").add(new Option(name, name));
@@ -203,7 +228,18 @@
         else Object.assign(draft().decisions[editing.id], { box, keep: true });
       }
       function zoom() { return Number($("zoom").value); }
-      function applyZoom() { $("stage").style.setProperty("--zoom", String(zoom())); }
+      // Fit the photo into the space below the viewport's top edge; zoom enlarges it inside the scrolling viewport.
+      function fitStage() {
+        const viewport = $("viewport");
+        const p = photo();
+        const top = viewport.getBoundingClientRect().top + window.scrollY;
+        const available = Math.max(240, window.innerHeight - top - 16);
+        const fitWidth = Math.min(viewport.parentElement.clientWidth, (available * p.width) / p.height);
+        viewport.style.width = `${fitWidth}px`;
+        viewport.style.maxHeight = `${available}px`;
+        $("stage").style.width = `${fitWidth * zoom()}px`;
+      }
+      function applyZoom() { fitStage(); }
       function scrollToBox(box) {
         const viewport = $("viewport");
         const p = photo();
@@ -488,40 +524,17 @@
         $("previous").disabled = current === 0;
         $("next").disabled = current === data.photos.length - 1;
         renderStage();
+        fitStage();
         renderList();
         const undecided = undecidedCount(d);
         const status = $("photo-status");
         status.className = d.review ? "status done" : "status";
         status.textContent = d.review
           ? `Done: ${d.review.objects.length} objects, reviewed by ${d.review.reviewer}`
-          : undecided ? `${undecided} boxes still need Keep or Reject` : "Not done yet";
-        $("mark-done").disabled = Boolean(d.review) || undecided > 0;
+          : undecided ? `${undecided} boxes still need Keep or Reject` : "Not done yet: enter your name, or press Keep all undecided";
         const done = [...drafts.values()].filter((value) => value.review).length;
         $("progress").textContent = `${done} of ${data.photos.length} photos done`;
       }
-
-      $("mark-done").addEventListener("click", () => {
-        const reviewer = $("reviewer").value.trim();
-        if (!reviewer) {
-          message.textContent = "Enter your name as reviewer before marking photos done.";
-          $("reviewer").focus();
-          return;
-        }
-        message.textContent = "";
-        const p = photo();
-        const d = draft();
-        const objects = [];
-        const rejected = [];
-        for (const proposal of p.proposals) {
-          const decision = d.decisions[proposal.id];
-          if (decision.keep) objects.push({ class_name: decision.className, box: proposalBox(proposal, decision), source: "proposed", proposal_id: proposal.id, adjusted: Boolean(decision.box) });
-          else rejected.push(proposal.id);
-        }
-        for (const drawn of d.drawn) objects.push({ class_name: drawn.className, box: drawn.box, source: "drawn", proposal_id: null });
-        d.review = { key: p.key, reviewer, reviewed_at: new Date().toISOString(), objects, rejected_proposals: rejected };
-        save();
-        render();
-      });
 
       $("keep-all").addEventListener("click", () => {
         for (const decision of Object.values(draft().decisions)) if (decision.keep === null) decision.keep = true;
@@ -557,8 +570,15 @@
         }
         message.textContent = "Every photo is done.";
       });
-      $("reviewer").addEventListener("change", save);
-      applyZoom();
+      // The name's change event fires on blur, often from the pointerdown that starts a drag, so only
+      // re-render when the name actually finished the photo.
+      $("reviewer").addEventListener("change", () => {
+        const before = draft().review;
+        completeIfDecided();
+        save();
+        if (draft().review !== before) render();
+      });
+      window.addEventListener("resize", fitStage);
       render();
     </script>
   </body>
