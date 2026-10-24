@@ -51,7 +51,8 @@
       #progress { color: var(--muted); margin: 6px 0 0; }
       #message { margin: 6px 0 0; color: var(--reject); }
       main { padding: 16px; display: grid; gap: 16px; }
-      @media (min-width: 1100px) { main { grid-template-columns: minmax(0, 3fr) minmax(320px, 1fr); align-items: start; } }
+      /* The photo column is as wide as fitStage() makes the photo; the box list takes the rest. */
+      @media (min-width: 1100px) { main { grid-template-columns: auto minmax(360px, 1fr); align-items: start; } }
       /* fitStage() sizes the viewport and stage so the whole photo fits on screen at 100% zoom. */
       .viewport { overflow: auto; border-radius: 8px; background: #000; max-width: 100%; }
       .stage { position: relative; background: #000; }
@@ -74,6 +75,26 @@
       .meta { color: var(--muted); font-size: 13px; }
       .status { font-weight: 600; }
       .done { color: var(--keep); }
+      .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+      /* With a mouse, compact controls so the whole box list fits beside the photo without scrolling;
+         touch screens keep 44 px targets. */
+      @media (pointer: fine) {
+        header { padding: 8px 16px; }
+        details { margin: 2px 0 4px; }
+        header input, header button, header select { min-height: 34px; padding: 3px 10px; }
+        #progress, #message { margin-top: 2px; }
+        main { padding: 10px 16px; gap: 12px; }
+        aside { padding: 8px; gap: 6px; }
+        aside input, aside select, aside button { min-height: 30px; padding: 2px 8px; font-size: 13px; }
+        aside label { font-size: 13px; }
+        aside .row { gap: 4px 6px; }
+        ol { gap: 4px; }
+        li { padding: 3px 6px; gap: 2px; border-left-width: 5px; }
+        .meta { font-size: 12px; }
+        .row .meta { min-width: 7em; }
+        .edges { gap: 4px 6px; }
+        .edges input { width: 5.5em; }
+      }
     </style>
   </head>
   <body>
@@ -236,9 +257,19 @@
         const p = photo();
         const top = viewport.getBoundingClientRect().top + window.scrollY;
         const available = Math.max(240, window.innerHeight - top - 16);
-        const fitWidth = Math.min(viewport.parentElement.clientWidth, (available * p.width) / p.height);
+        // Side by side, leave at least 360 px of the main area for the box list.
+        const main = document.querySelector("main");
+        const style = getComputedStyle(main);
+        const wide = window.matchMedia("(min-width: 1100px)").matches;
+        const room = wide
+          ? main.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.columnGap) - 360
+          : viewport.parentElement.clientWidth;
+        const fitWidth = Math.min(room, (available * p.width) / p.height);
         viewport.style.width = `${fitWidth}px`;
         viewport.style.maxHeight = `${available}px`;
+        // Beside the photo, the box list gets the same height, so the page itself never scrolls.
+        const aside = document.querySelector("aside");
+        aside.style.maxHeight = wide ? `${available}px` : "";
         $("stage").style.width = `${fitWidth * zoom()}px`;
       }
       function applyZoom() { fitStage(); }
@@ -406,6 +437,14 @@
         stage.replaceChildren(image, svg);
       }
 
+      // The select already shows the class, so its "Class" label is for screen readers only.
+      function classLabelText() {
+        const text = document.createElement("span");
+        text.className = "visually-hidden";
+        text.textContent = "Class";
+        return text;
+      }
+
       function classSelect(value, onChange) {
         const select = document.createElement("select");
         for (const name of data.classes) select.add(new Option(name, name));
@@ -449,19 +488,19 @@
       function editControls(kind, key, row, li, onReset) {
         if (onReset) {
           const reset = document.createElement("button");
-          reset.type = "button"; reset.textContent = "Reset box";
+          reset.type = "button"; reset.textContent = "Reset"; reset.setAttribute("aria-label", "Reset box");
           reset.addEventListener("click", () => { onReset(); changed(); });
           row.append(reset);
         }
         if (!isEditing(kind, key)) {
           const type = document.createElement("button");
-          type.type = "button"; type.textContent = "Type edges";
+          type.type = "button"; type.textContent = "Edges"; type.setAttribute("aria-label", "Type edges");
           type.addEventListener("click", () => { editing = kind === "proposal" ? { kind, id: key } : { kind, index: key }; render(); });
           row.append(type);
           return;
         }
         const done = document.createElement("button");
-        done.type = "button"; done.textContent = "Hide edges";
+        done.type = "button"; done.textContent = "Hide"; done.setAttribute("aria-label", "Hide edges");
         done.addEventListener("click", () => { editing = null; render(); });
         row.append(done);
         li.append(edgeFields(editedBox()));
@@ -476,13 +515,13 @@
           li.dataset.state = stateOf(decision);
           const meta = document.createElement("div");
           meta.className = "meta";
-          const low = proposal.confidence < data.lowConfidence ? ", low confidence: check closely" : "";
-          const adjusted = decision.box ? "; box adjusted" : "";
-          meta.textContent = `Box ${index + 1}: detector says ${proposal.className} (${proposal.confidence.toFixed(2)})${low}${adjusted}`;
+          const low = proposal.confidence < data.lowConfidence ? " · low, check closely" : "";
+          const adjusted = decision.box ? " · box adjusted" : "";
+          meta.textContent = `Box ${index + 1}: ${proposal.className} ${proposal.confidence.toFixed(2)}${low}${adjusted}`;
           const row = document.createElement("div");
           row.className = "row";
           const label = document.createElement("label");
-          label.append("Class", classSelect(decision.className, (value) => { decision.className = value; changed(); }));
+          label.append(classLabelText(), classSelect(decision.className, (value) => { decision.className = value; changed(); }));
           const keep = document.createElement("button");
           keep.type = "button"; keep.className = "keep"; keep.textContent = "Keep";
           keep.setAttribute("aria-pressed", String(decision.keep === true));
@@ -492,7 +531,8 @@
           reject.setAttribute("aria-pressed", String(decision.keep === false));
           reject.addEventListener("click", () => { decision.keep = false; changed(); });
           row.append(label, keep, reject);
-          li.append(meta, row);
+          row.prepend(meta);
+          li.append(row);
           editControls("proposal", proposal.id, row, li, decision.box ? () => { decision.box = null; } : null);
           return li;
         });
@@ -501,16 +541,17 @@
           li.dataset.state = "drawn";
           const meta = document.createElement("div");
           meta.className = "meta";
-          meta.textContent = `Drawn box D${index + 1}`;
+          meta.textContent = `Drawn D${index + 1}`;
           const row = document.createElement("div");
           row.className = "row";
           const label = document.createElement("label");
-          label.append("Class", classSelect(drawn.className, (value) => { drawn.className = value; changed(); }));
+          label.append(classLabelText(), classSelect(drawn.className, (value) => { drawn.className = value; changed(); }));
           const remove = document.createElement("button");
           remove.type = "button"; remove.textContent = "Delete";
           remove.addEventListener("click", () => { editing = null; d.drawn.splice(index, 1); changed(); });
           row.append(label, remove);
-          li.append(meta, row);
+          row.prepend(meta);
+          li.append(row);
           editControls("drawn", index, row, li, null);
           items.push(li);
         });
